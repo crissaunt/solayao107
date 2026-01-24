@@ -1,0 +1,348 @@
+/* Font and Base Settings */
+
+
+
+*{
+    font-family: 'Rubik', sans-serif;
+    margin:0; padding:0;
+    box-sizing: border-box;
+    outline: none; border:none;
+   
+ }
+html{
+    font-size: 62.5%;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    scroll-padding-top: 6.5rem;
+ }
+ 
+
+body {
+    background-size: cover;
+    color: #333;
+    font-size: 16px;
+    line-height: 1.6;
+    height: 100%;
+    width: 100%;
+}
+
+
+.header{
+    padding: 5px 0 5px 0;
+    background-color: #eef3ee;
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.1);
+ }
+ 
+
+ .header .flex{
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1440px ;
+    position: relative;
+    
+ }
+ 
+ .header .flex .logo{
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color:green;
+    text-decoration: none;
+ }
+
+ .navbar a{
+  font-size: 14px;
+  font-weight: 500;
+  color: green;
+  margin-left: 5rem;
+  text-decoration: none;
+  
+}
+ .navbar a:hover{
+    color: rgb(226, 175, 86);  
+ }
+ 
+ /* body */
+
+.wrapper {
+
+    display: flex;
+    justify-content: center;
+    padding: 10px 10px; 
+    background-image: url(../images/bg-plants.jpg);
+    background-size: cover;
+}
+
+
+
+.box-body {
+    display: flex-end;
+    gap: 30px;
+    padding: 10px 20px;
+    background-color: rgb(248, 246, 239);
+    width: 100%;
+    max-width: 1100px;
+    border-radius: 5px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    border: 3px solid #30833f;
+}
+
+.form-header {
+    font-size: 25px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+    text-align: center;
+    border-bottom: 2px solid #3b8739;
+    padding-bottom: 5px;
+    letter-spacing: 2px;
+}
+
+.column {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    
+}
+
+.input-box {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 3px;
+}
+
+
+
+
+
+.input-box label {
+    font-size: 12px;
+    color: #808080;
+    font-weight: 700;
+}
+
+
+
+.input-box input, .input-box select {
+    height: 35px;
+    border-radius: 2px;
+    font-size: 14px;
+    padding: 2px;
+    color: #333;
+    transition: border-color 0.3s ease;
+    border: 1px solid rgb(92, 92, 92);
+}
+
+
+
+.input-box input:focus, .input-box select:focus {
+    outline: 0;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.2);
+}
+.input-box.error input,.input-box.error select{
+  border-color: #ff3860;
+}
+
+
+.input-box.success input,.input-box.success select{
+  border-color: #09c372;
+}
+.input-box .error{
+  color: #ff3860;
+  font-size: 12px;
+}
+
+input::placeholder {
+    color: #888585;
+}
+
+select {
+    background-color: #fff;
+}
+
+select option {
+    color: #555;
+    background: #fff;
+}
+
+.input-box {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Password strength meter */
+.strength-meter {
+  height: 8px;
+  width: 100%;
+  background-color: #ddd;
+  border-radius: 5px;
+  margin-top: 10px;
+  transition: background-color 0.5s;
+}
+
+/* Different strength colors */
+.strength-weak {
+  background-color: red;
+}
+
+.strength-medium {
+  background-color: orange;
+}
+
+.strength-strong {
+  background-color: green;
+}
+
+.strength-superstrong {
+  background-color: darkgreen;
+}
+
+.strength-text {
+  margin-top: 5px;
+  font-size: 14px;
+  color: #333;
+}
+
+
+
+
+
+.btn-create-account-container {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.btn-create-account {
+    background-color: #205d1c;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 12px 4rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    letter-spacing: 2px;
+}
+
+.btn-create-account:hover {
+    background-color: #43a047;
+}
+
+.already-account{
+  font-size: 12px;
+    margin-top:10px ;
+    
+}
+.already-account a{
+   color: green;  
+}
+.already-account a:hover{
+    color: rgb(192, 110, 63);  
+ }
+
+/* footer */
+
+footer {
+    background-color: rgb(12, 14, 11);
+    color: #ffffff;
+    padding: 20px 0;
+    display: flex;
+  }
+  
+  .footer-container {
+    width: 100%;
+    margin: 0 20rem;
+  }
+  
+  .footer-content {
+    display: flex-end;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid #444;
+  }
+  .footer-logo a{
+    font-size: 2.5rem;
+    font-weight: 1000;
+    letter-spacing: 2px;
+    color:rgb(66, 199, 66);
+    text-decoration: none;
+  }
+  
+  
+  
+  .footer-links ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    gap: 20px;
+  }
+  
+  .footer-links ul li a {
+    color: #8ecf7c;
+    text-decoration: none;
+  }
+  
+  .footer-social a {
+    color: #6a976a;
+    margin-left: 15px;
+    font-size: 18px;
+  }
+  
+  .footer-bottom {
+    text-align: center;
+    padding: 10px 0;
+  }
+  
+  .footer-bottom p {
+    margin: 0;
+    font-size: 14px;
+    color: rgb(178, 178, 178);
+  }
+  
+  .footer-social a:hover, .footer-links ul li a:hover {
+    color: rgb(211, 138, 97);  
+
+  }
+  
+
+  .fas1{
+    position: relative;
+    right: 40px;
+    top: 8px;
+    
+  }
+
+
+
+
+
+.security-questions label {
+    display: block;
+
+    font-weight: bold;
+}
+
+.security-questions select,
+.security-questions input[type="text"] {
+    width: 100%;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.security-questions .error {
+    color: #dc3545;
+    font-size: 11px;
+    min-height: 15px;
+}
+
+.security-questions .success {
+    color: #28a745;
+}

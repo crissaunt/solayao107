@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <!-- <link rel="stylesheet" href="../product/plant.css"> -->
+    <link href="../css/src/output.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+ 
+    
+  
+</head>
+<body>
+
+    
+    <header class="bg-[#eef3ee]">
+        <div class="flex justify-between items-center max-w-screen-2xl w-full mx-auto p-4 ">
+            <a href="#" class="font-bold text-lg">PLants.🌼</a>
+            <nav aria-label="Main Navigation" class="flex space-x-6">
+                <a href="#" class="hover:text-green-700 transition-colors text-sm hover:border-b-1">Home</a>
+                <a id="signupToLogout" href="login.html" class="hover:text-green-700 transition-colors text-sm hover:border-b-1">Log in</a>
+            </nav>
+        </div>
+    </header>
+
+
+
+    <main class="flex justify-center p-2 bg-cover" style="background-image: url('../images/bg-plants.jpg');">
+
+        <div class="box-body">
+            <div class="box-form">
+                <header class="form-header">Personal Information</header>
+                <form action="" method="POST" id="form">
+                    <!-- personal information -->
+                        <!-- personal information -->
+                            <!-- personal information -->
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="id">Id number:</label>
+                            <input type="text" id="id" name="id" 
+                            placeholder="Ex. 0000-0000" >
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="email">Email:</label>
+                            <input type="text" id="email" name="email" 
+                             placeholder="Ex. alex.ligalig@company.com" >
+                             <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="contact_number">Contact Number:</label>
+                            <input type="text" id="contact_number" name="contact_number" 
+                            placeholder="Ex. 09123456789" >
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username"
+                            placeholder="Ex. alex24" >
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="fname">First Name:</label>
+                            <input type="text" id="fname" name="fname"
+                            placeholder="Ex. Alex" >
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box " >
+                            <label for="mname" style="display: flex;">Middle Name(<p style="color: rgb(214, 51, 51);font-size: 13px;">Optional</p>):</label>
+                            <input type="text" id="mname" name="mname"
+                             placeholder="Ex. Dela Cruz" >
+                              <div class="error"></div>
+                        </div>
+
+                        
+                        <div class="input-box">
+                            <label for="lname">Last Name:</label>
+                            <input type="text" name="lname" id="lname" 
+                              placeholder="Ex. Ligalig" >
+                              <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="extend_name" style="display:flex;font-size: 12px;margin-top:2px">Extension Name(<p style="color: rgb(214, 51, 51);font-size: 13px;">Optional</p>):</label>
+                            <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr.">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box" style="width: 170px;">
+                            <label for="birthday">Birthday</label>
+                            <input type="date" id="birthday" name="birthday"  onchange="calculateAge()">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="age">Age</label>
+                            <input type="text" id="age" name="age"  oninput="calculateBirthdate()" placeholder="Enter your birthdate to input this field" >
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="gender">Sex</label>
+                            <select id="gender" name="sex" type="sex" >
+                                <option value="" hidden>Select Your Sex</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <!-- Password input with strength meter -->
+                        <div class="input-box">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" placeholder="Enter your password">
+                            <div class="strength-meter" id="strength-meter"></div>
+                            <span class="strength-text" id="strength-text">Password Strength: </span>
+                            <div class="error"></div>
+                        </div>
+
+                        
+                        
+                        <!-- Toggle password visibility -->
+                        <!-- <div class="input-box" style="margin-top:22px; width: 7%;">
+                            <img id="togglePassword" src="../images/close-eye.png" style="cursor: pointer; width: 20px;" class="fas" onclick="togglePasswordVisibility('password')">
+                        </div> -->
+                        <div class="input-box" style="margin-top:22px; width: 7%;">
+                            <img id="togglePassword1" src="../images/eye-icon.png" style="cursor: pointer; width: 20px;" class="fas1" onclick="togglePasswordVisibility1('password')">
+                        </div>
+                        
+                    
+                        <!-- Re-enter password input -->
+                        <div class="input-box">
+                            <label for="repassword">Enter Password again:</label>
+                            <input type="password" id="repassword" name="repassword" placeholder="Enter your password again">
+                            <div class="error"></div>
+                        </div>
+                    
+                        
+                        
+                    </div>
+                    
+                    
+           
+                        <!-- address -->
+                         <!-- address -->
+                          <!-- address -->
+
+                <Header class="form-header address-header">Personal Address</Header>
+                <div class="column">
+                    <div class="input-box">
+                        <label for="street_purok">Purok/Street:</label>
+                        <input type="text" name="street_purok" id="street_purok"  
+                          >
+                         <div class="error"></div>
+                    </div>
+
+                    <div class="input-box">
+                        <label for="barangay">Barangay:</label>
+                        <input type="text" name="barangay" id="barangay" 
+                      >
+                         <div class="error"></div>
+                    </div>
+
+                    <div class="input-box">
+                        <label for="city_municipal">City/Municipal:</label>
+                        <input type="text" name="city_municipal" id="city_municipal" 
+                     >
+                        <div class="error"></div>
+                    </div>
+                </div>
+
+                <div class="column">
+                    <div class="input-box">
+                        <label for="province">Province</label>
+                        <input type="text" name="province" id="province" 
+                      >
+                        <div class="error"></div>
+                    </div>
+                    <div class="input-box">
+                        <label for="country">Country</label>
+                        <input type="text" name="country" id="country"  
+                         >
+                        <div class="error"></div>
+                    </div>
+
+                    <div class="input-box">
+                        <label for="zipcode">Zip Code</label>
+                        <input type="text" id="zipcode"  name="zipcode" ="Ex. 8000">
+                        
+                        <div class="error"></div>
+                    </div>
+                </div>
+                <div class="btn-create-account-container">
+                    <button type="submit" name="submit" class="btn-create-account">Create an account</button>
+                </div>
+            
+        </form>
+       
+       <div class="already-account">
+            <p>Already have Account?<a href="login.html"> Click to Login</a></p>
+    </div>
+</main>
+
+
+
+<footer>
+    <div class="footer-container">
+      <div class="footer-content">
+        <div class="footer-logo">
+            <a href="#" class="logo">PLants.&#127804;</a>
+        </div>
+        <div class="footer-links">
+          <ul>
+            <li><a href="home.html">Home</a></li>
+            <!-- <li><a href="#">About Us</a></li>
+            <li><a href="#">Services</a></li>
+            <li><a href="#">Contact</a></li> -->
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2024 PLants.. All Rights Reserved.</p>
+      </div>
+    </div>
+  </footer>
+  
+ <script src="../javascript/register.js"></script>
+</body>
+</html>
+

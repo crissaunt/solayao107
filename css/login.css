@@ -1,0 +1,539 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap');
+
+* {
+    font-family: 'Rubik', sans-serif;
+    margin: 0; padding: 0;
+    box-sizing: border-box;
+    outline: none; border: none;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+html {
+    font-size: 62.5%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 6.5rem;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-size: cover;
+    color: #333;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.header {
+    padding: 5px 0 5px 0;
+    background-color: #eef3ee;
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.1);
+    flex-shrink: 0;
+}
+
+.header .flex {
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1440px;
+    position: relative;
+}
+
+.header .flex .logo {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: green;
+    text-decoration: none;
+}
+
+.navbar a {
+    font-size: 14px;
+    font-weight: 400;
+    color: green;
+    margin-left: 5rem;
+    text-decoration: none;
+}
+
+.navbar a:hover {
+    color: rgb(226, 175, 86);  
+}
+
+/* UPDATED WRAPPER - FULL SCREEN */
+.wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: end;
+    align-items: center;
+    background-image: url(../images/login-bg.png);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    padding: 30px;
+}
+
+/* COMPACT BOX-BODY */
+.box-body {
+    display: flex;
+    flex-direction: column;
+    background: rgb(251, 236, 217);
+    padding: 0 40px 30px; /* Top padding removed since we have top border */
+    width: 100%;
+    max-width: 450px;
+    height: 500px;
+    border-radius: 5px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    border: 2px solid #23612f;
+    border-top: 40px solid rgb(1, 81, 1);
+    margin-right: 60px;
+    overflow: hidden; /* Prevent content overflow */
+}
+
+/* Box header area */
+.box-header {
+    height: 40px; /* Matches the border-top */
+    position: relative;
+    top: -40px; /* Pulls content up into the green area */
+    margin-bottom: -20px; /* Compensate for the negative top */
+}
+
+.form-header {
+    font-size: 28px; /* Adjusted for better fit */
+    font-weight: bold;
+    color: #3b8739;
+    text-align: center;
+    letter-spacing: 4px;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+/* Main form content area */
+.box-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Reduced gap between form elements */
+    overflow-y: auto; /* Allow scrolling if content overflows */
+    padding: 0 5px; /* Small side padding */
+}
+
+.column {
+    display: flex;
+    flex-direction: row;
+}
+
+.input-box {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-bottom: 12px; /* Reduced spacing */
+}
+
+.input-box label {
+    font-size: 14px; /* Slightly smaller */
+    color: #555;
+    font-weight: 600; /* Reduced from 1000 for better readability */
+    margin-bottom: 4px; /* Reduced margin */
+}
+
+.error-message {
+    color: red;
+    font-size: 13px; /* Smaller font */
+    margin-bottom: 8px;
+    padding: 4px 6px;
+    min-height: 22px;
+    text-align: center;
+    border-radius: 3px;
+}
+
+#login-button:disabled {
+    background-color: gray;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.disabled {
+    color: gray;
+    pointer-events: none;
+    cursor: default;
+}
+
+.input-box input {
+    padding-left: 12px;
+    padding-right: 40px; /* Space for eye icon */
+    height: 36px; /* Slightly shorter */
+    border-radius: 2px;
+    font-size: 14px; /* Slightly smaller */
+    color: #333;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    border: 2px solid rgb(0, 73, 5);
+    width: 100%;
+}
+
+.input-box input:focus, .input-box select:focus {
+    outline: 0;
+    box-shadow: 0 0 6px rgba(76, 175, 80, 0.25);
+    border-color: #2e7d32;
+}
+
+.input-box.error input, .input-box.error select {
+    border-color: #ff3860;
+}
+
+.input-box.error-password input, .input-box.error-password select {
+    border-color: #ff3860;
+}
+
+.input-box.success input, .input-box.success select {
+    border-color: #09c372;
+}
+
+.input-box .error {
+    color: #ff3860;
+    font-size: 11px; /* Smaller font */
+    margin-top: 3px;
+    min-height: 16px;
+}
+
+.input-box .error-password {
+    color: #ff3860;
+    font-size: 11px;
+    margin-top: 3px;
+    min-height: 16px;
+}
+
+input::placeholder {
+    color: #888585;
+    font-size: 13px; /* Smaller placeholder text */
+}
+
+/* Form actions area */
+.form-actions {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.btn-create-account-container {
+    text-align: center;
+}
+
+.btn-create-account {
+    width: 100%;
+    background-color: #205d1c;
+    color: white;
+    font-size: 15px; /* Slightly smaller */
+    font-weight: 600; /* Reduced from bold */
+    padding: 10px 2rem; /* Less padding */
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 1px; /* Less spacing */
+}
+
+.btn-create-account:hover {
+    background-color: #43a047;
+  
+}
+
+/* Bottom links area */
+.form-footer {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#forgot-password {
+    font-size: 12px;
+    text-align: center;
+    margin: 5px 0;
+}
+
+#forgot-password a {
+    color: rgb(0, 81, 255);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+#forgot-password a:hover {
+    text-decoration: underline;
+}
+
+.already-account {
+    font-size: 12px;
+    text-align: center;
+    margin-top: 5px;
+}
+
+.already-account a {
+    color: green;  
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.already-account a:hover {
+    color: rgb(192, 110, 63);  
+    text-decoration: underline;
+}
+
+/* Adjust eye icon position */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+#togglePassword1 {
+    cursor: pointer;
+    width: 18px; /* Smaller icon */
+    height: 18px;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    background: white;
+    padding: 2px;
+    border-radius: 50%;
+}
+
+/* FOOTER */
+footer {
+    background-color: rgb(12, 14, 11);
+    color: #ffffff;
+    padding: 20px 0;
+    flex-shrink: 0;
+}
+
+.footer-container {
+    width: 100%;
+    margin: 0 20rem;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid #444;
+}
+
+.footer-logo a {
+    font-size: 2.5rem;
+    font-weight: 1000;
+    letter-spacing: 2px;
+    color: rgb(66, 199, 66);
+    text-decoration: none;
+}
+
+.footer-links ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    gap: 20px;
+}
+
+.footer-links ul li a {
+    color: #8ecf7c;
+    text-decoration: none;
+}
+
+.footer-social a {
+    color: #6a976a;
+    margin-left: 15px;
+    font-size: 18px;
+}
+
+.footer-bottom {
+    text-align: center;
+    padding: 10px 0;
+}
+
+.footer-bottom p {
+    margin: 0;
+    font-size: 14px;
+    color: rgb(178, 178, 178);
+}
+
+.footer-social a:hover, .footer-links ul li a:hover {
+    color: rgb(211, 138, 97);  
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 1200px) {
+    .box-body {
+        margin-right: 40px;
+        max-width: 400px;
+        height: 480px;
+    }
+    
+    .form-header {
+        font-size: 26px;
+    }
+}
+
+@media (max-width: 992px) {
+    .wrapper {
+        justify-content: center;
+    }
+    
+    .box-body {
+        margin-right: 0;
+        max-width: 380px;
+        height: 460px;
+    }
+    
+    .footer-container {
+        margin: 0 10rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .wrapper {
+        min-height: calc(100vh - 100px);
+        padding: 20px;
+        justify-content: center;
+    }
+    
+    .box-body {
+        padding: 0 30px 25px;
+        max-width: 90%;
+        height: auto;
+        min-height: 420px;
+        margin: 0;
+    }
+    
+    .form-header {
+        font-size: 24px;
+        letter-spacing: 3px;
+    }
+    
+    .footer-container {
+        margin: 0 2rem;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .navbar a {
+        margin-left: 2rem;
+    }
+    
+    .btn-create-account {
+        padding: 9px 2rem;
+        font-size: 14px;
+    }
+    
+    #togglePassword1 {
+        width: 16px;
+        height: 16px;
+        right: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .wrapper {
+        padding: 15px;
+    }
+    
+    .box-body {
+        padding: 0 25px 20px;
+        max-width: 95%;
+        border-top: 30px solid rgb(1, 81, 1);
+        margin: 0 auto;
+    }
+    
+    .form-header {
+        font-size: 22px;
+        letter-spacing: 2px;
+        margin-top: 8px;
+    }
+    
+    .input-box {
+        margin-bottom: 10px;
+    }
+    
+    .input-box input {
+        height: 34px;
+        font-size: 13px;
+        padding-left: 10px;
+        padding-right: 35px;
+    }
+    
+    .input-box label {
+        font-size: 13px;
+    }
+    
+    .btn-create-account {
+        padding: 8px 1.5rem;
+        font-size: 13px;
+    }
+    
+    .already-account,
+    #forgot-password {
+        font-size: 11px;
+    }
+    
+    #togglePassword1 {
+        width: 14px;
+        height: 14px;
+        right: 8px;
+    }
+    
+    .form-actions {
+        gap: 10px;
+    }
+}
+
+@media (max-width: 360px) {
+    .box-body {
+        padding: 0 20px 15px;
+        border-top: 25px solid rgb(1, 81, 1);
+    }
+    
+    .form-header {
+        font-size: 20px;
+        letter-spacing: 1px;
+    }
+    
+    .input-box input {
+        height: 32px;
+        font-size: 12px;
+    }
+    
+    .btn-create-account {
+        padding: 7px 1rem;
+        font-size: 12px;
+    }
+    
+    .already-account,
+    #forgot-password {
+        font-size: 10px;
+    }
+}
+
+/* Ensure form fits nicely on all screens */
+@media (max-height: 600px) {
+    .box-body {
+        height: auto;
+        min-height: 380px;
+    }
+    
+    .wrapper {
+        align-items: flex-start;
+        padding-top: 20px;
+    }
+}
