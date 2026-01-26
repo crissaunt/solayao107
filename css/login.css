@@ -2,9 +2,11 @@
 
 * {
     font-family: 'Rubik', sans-serif;
-    margin: 0; padding: 0;
+    margin: 0; 
+    padding: 0;
     box-sizing: border-box;
-    outline: none; border: none;
+    outline: none; 
+    border: none;
 }
 
 html, body {
@@ -29,8 +31,9 @@ body {
     line-height: 1.6;
 }
 
+/* HEADER */
 .header {
-    padding: 5px 0 5px 0;
+    padding: 5px 0;
     background-color: #eef3ee;
     box-shadow: 0 .5rem 1rem rgba(0,0,0,.1);
     flex-shrink: 0;
@@ -42,7 +45,8 @@ body {
     align-items: center;
     justify-content: space-between;
     max-width: 1440px;
-    position: relative;
+    padding: 0 20px;
+    width: 100%;
 }
 
 .header .flex .logo {
@@ -57,12 +61,16 @@ body {
     font-size: 14px;
     font-weight: 400;
     color: green;
-    margin-left: 5rem;
+    margin-left: 2rem;
     text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
 }
 
 .navbar a:hover {
-    color: rgb(226, 175, 86);  
+    color: rgb(226, 175, 86);
+    background-color: rgba(0, 128, 0, 0.1);
 }
 
 /* UPDATED WRAPPER - FULL SCREEN */
@@ -77,7 +85,7 @@ body {
     background-repeat: no-repeat;
     width: 100%;
     min-height: calc(100vh - 120px);
-    padding: 30px;
+    padding: 20px;
 }
 
 /* COMPACT BOX-BODY */
@@ -85,32 +93,32 @@ body {
     display: flex;
     flex-direction: column;
     background: rgb(251, 236, 217);
-    padding: 0 40px 30px; /* Top padding removed since we have top border */
+    padding: 0 30px 25px;
     width: 100%;
     max-width: 450px;
-    height: 500px;
+    min-height: 350px;
     border-radius: 5px;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
     border: 2px solid #23612f;
     border-top: 40px solid rgb(1, 81, 1);
-    margin-right: 60px;
-    overflow: hidden; /* Prevent content overflow */
+    margin: 0;
+    overflow: hidden;
 }
 
 /* Box header area */
 .box-header {
-    height: 40px; /* Matches the border-top */
+    height: 40px;
     position: relative;
-    top: -40px; /* Pulls content up into the green area */
-    margin-bottom: -20px; /* Compensate for the negative top */
+    top: -40px;
+    margin-bottom: -20px;
 }
 
 .form-header {
-    font-size: 28px; /* Adjusted for better fit */
+    font-size: 24px;
     font-weight: bold;
     color: #3b8739;
     text-align: center;
-    letter-spacing: 4px;
+    letter-spacing: 3px;
     margin-top: 10px;
     padding-top: 10px;
 }
@@ -120,38 +128,40 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px; /* Reduced gap between form elements */
-    overflow-y: auto; /* Allow scrolling if content overflows */
-    padding: 0 5px; /* Small side padding */
+    gap: 8px;
+    overflow-y: auto;
+    padding: 0 5px;
 }
 
 .column {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 .input-box {
     display: flex;
     flex-direction: column;
     width: 100%;
-    margin-bottom: 12px; /* Reduced spacing */
+    margin-bottom: 10px;
 }
 
 .input-box label {
-    font-size: 14px; /* Slightly smaller */
+    font-size: 14px;
     color: #555;
-    font-weight: 600; /* Reduced from 1000 for better readability */
-    margin-bottom: 4px; /* Reduced margin */
+    font-weight: 600;
+    margin-bottom: 4px;
 }
 
 .error-message {
     color: red;
-    font-size: 13px; /* Smaller font */
-    margin-bottom: 8px;
+    font-size: 12px;
+    margin-bottom: 4px;
     padding: 4px 6px;
-    min-height: 22px;
     text-align: center;
     border-radius: 3px;
+    display: none;
 }
 
 #login-button:disabled {
@@ -166,12 +176,13 @@ body {
     cursor: default;
 }
 
-.input-box input {
+.input-box input,
+.input-box select {
     padding-left: 12px;
-    padding-right: 40px; /* Space for eye icon */
-    height: 36px; /* Slightly shorter */
+    padding-right: 35px;
+    height: 36px;
     border-radius: 2px;
-    font-size: 14px; /* Slightly smaller */
+    font-size: 14px;
     color: #333;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
     transition: all 0.2s ease;
@@ -179,41 +190,55 @@ body {
     width: 100%;
 }
 
-.input-box input:focus, .input-box select:focus {
+.input-box input:focus, 
+.input-box select:focus {
     outline: 0;
     box-shadow: 0 0 6px rgba(76, 175, 80, 0.25);
     border-color: #2e7d32;
 }
 
-.input-box.error input, .input-box.error select {
+.input-box.error input, 
+.input-box.error select {
     border-color: #ff3860;
 }
 
-.input-box.error-password input, .input-box.error-password select {
+.input-box.error-password input, 
+.input-box.error-password select {
     border-color: #ff3860;
 }
 
-.input-box.success input, .input-box.success select {
+.input-box.success input, 
+.input-box.success select {
     border-color: #09c372;
 }
 
 .input-box .error {
     color: #ff3860;
-    font-size: 11px; /* Smaller font */
+    font-size: 11px;
     margin-top: 3px;
     min-height: 16px;
+    display: none;
 }
 
 .input-box .error-password {
     color: #ff3860;
-    font-size: 11px;
+    font-size: 12px;
     margin-top: 3px;
-    min-height: 16px;
+    display: none;
 }
 
-input::placeholder {
+input::placeholder,
+select::placeholder {
     color: #888585;
-    font-size: 13px; /* Smaller placeholder text */
+    font-size: 13px;
+}
+
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
 }
 
 /* Form actions area */
@@ -232,19 +257,280 @@ input::placeholder {
     width: 100%;
     background-color: #205d1c;
     color: white;
-    font-size: 15px; /* Slightly smaller */
-    font-weight: 600; /* Reduced from bold */
-    padding: 10px 2rem; /* Less padding */
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 1.5rem;
     border: none;
     border-radius: 2px;
     cursor: pointer;
     transition: all 0.3s ease;
-    letter-spacing: 1px; /* Less spacing */
+    letter-spacing: 1px;
 }
 
 .btn-create-account:hover {
     background-color: #43a047;
-  
+}
+
+/* Step indicator styling */
+.step-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    position: relative;
+    padding: 0 5px;
+}
+
+.step-indicator::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: #ccc;
+    z-index: 1;
+}
+
+.step {
+    text-align: center;
+    flex: 1;
+    position: relative;
+    z-index: 2;
+    padding: 0 3px;
+}
+
+.step-number {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #ddd;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 5px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.step.active .step-number {
+    background: #4CAF50;
+    color: white;
+}
+
+.step.completed .step-number {
+    background: #2E7D32;
+    color: white;
+}
+
+.step-title {
+    font-size: 11px;
+    color: #666;
+    line-height: 1.2;
+}
+
+.step.active .step-title {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+/* Password reset specific styles */
+.step-content {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 15px;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #555;
+    font-size: 14px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 2px solid rgb(0, 73, 5);
+    border-radius: 2px;
+    font-size: 14px;
+    background: white;
+}
+
+.btn-reset {
+    width: 100%;
+    background-color: #205d1c;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 1.5rem;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 1px;
+    margin-top: 10px;
+}
+
+.btn-reset:hover {
+    background-color: #43a047;
+}
+
+.btn-reset:disabled {
+    background-color: gray;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-secondary {
+    width: 100%;
+    background-color: #666;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 1.5rem;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 1px;
+    margin-top: 10px;
+}
+
+.btn-secondary:hover {
+    background-color: #555;
+}
+
+/* Message styles */
+.attempts-display {
+    color: #d32f2f;
+    font-size: 12px;
+    margin-top: 5px;
+    padding: 5px;
+    background: #ffebee;
+    border-radius: 3px;
+    text-align: center;
+}
+
+.timer {
+    color: #ff9800;
+    font-weight: bold;
+    text-align: center;
+    margin: 10px 0;
+    font-size: 13px;
+}
+
+.resend-link {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 12px;
+}
+
+.resend-link a {
+    color: rgb(0, 81, 255);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.resend-link a:hover {
+    text-decoration: underline;
+}
+
+.back-link {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 12px;
+}
+
+.back-link a {
+    color: #666;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.back-link a:hover {
+    text-decoration: underline;
+    color: #4CAF50;
+}
+
+.password-requirements {
+    font-size: 11px;
+    margin-top: 5px;
+    color: #666;
+}
+
+.requirement {
+    margin-left: 15px;
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.requirement.met {
+    color: #4CAF50;
+}
+
+.requirement.not-met {
+    color: #f44336;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.action-buttons button {
+    flex: 1;
+    min-width: 120px;
+}
+
+.demo-note {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 10px;
+    border-radius: 3px;
+    margin: 15px 0;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.demo-note strong {
+    font-weight: bold;
+}
+
+/* Success and error message containers */
+#success-content,
+#email-not-found-content {
+    text-align: center;
+    padding: 20px 0;
+}
+
+#success-content h3,
+#email-not-found-content h3 {
+    color: #3b8739;
+    margin-bottom: 15px;
+    font-size: 20px;
+}
+
+#email-not-found-content h3 {
+    color: #f44336;
+}
+
+#success-content p,
+#email-not-found-content p {
+    color: #555;
+    font-size: 14px;
+    margin-bottom: 10px;
+    line-height: 1.4;
 }
 
 /* Bottom links area */
@@ -274,7 +560,6 @@ input::placeholder {
 .already-account {
     font-size: 12px;
     text-align: center;
-    margin-top: 5px;
 }
 
 .already-account a {
@@ -296,7 +581,7 @@ input::placeholder {
 
 #togglePassword1 {
     cursor: pointer;
-    width: 18px; /* Smaller icon */
+    width: 18px;
     height: 18px;
     position: absolute;
     right: 12px;
@@ -318,7 +603,9 @@ footer {
 
 .footer-container {
     width: 100%;
-    margin: 0 20rem;
+    margin: 0 auto;
+    padding: 0 20px;
+    max-width: 1200px;
 }
 
 .footer-content {
@@ -327,12 +614,14 @@ footer {
     align-items: center;
     padding: 20px 0;
     border-bottom: 1px solid #444;
+    flex-wrap: wrap;
+    gap: 20px;
 }
 
 .footer-logo a {
-    font-size: 2.5rem;
-    font-weight: 1000;
-    letter-spacing: 2px;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
     color: rgb(66, 199, 66);
     text-decoration: none;
 }
@@ -341,18 +630,21 @@ footer {
     list-style: none;
     padding: 0;
     display: flex;
-    gap: 20px;
+    gap: 15px;
+    flex-wrap: wrap;
 }
 
 .footer-links ul li a {
     color: #8ecf7c;
     text-decoration: none;
+    font-size: 14px;
+    padding: 5px 10px;
 }
 
 .footer-social a {
     color: #6a976a;
-    margin-left: 15px;
-    font-size: 18px;
+    margin-left: 10px;
+    font-size: 16px;
 }
 
 .footer-bottom {
@@ -362,79 +654,249 @@ footer {
 
 .footer-bottom p {
     margin: 0;
-    font-size: 14px;
+    font-size: 13px;
     color: rgb(178, 178, 178);
 }
 
-.footer-social a:hover, .footer-links ul li a:hover {
+.footer-social a:hover, 
+.footer-links ul li a:hover {
     color: rgb(211, 138, 97);  
 }
 
-/* RESPONSIVE DESIGN */
-@media (max-width: 1200px) {
+/* ========== RESPONSIVE BREAKPOINTS ========== */
+
+/* Large Desktop (1920px and above) */
+@media (min-width: 1920px) {
+    .header .flex,
+    .footer-container {
+        max-width: 1800px;
+        padding: 0 40px;
+    }
+    
     .box-body {
+        max-width: 500px;
+        padding: 0 40px 30px;
+    }
+}
+
+/* Desktop (1200px - 1919px) */
+@media (min-width: 1200px) and (max-width: 1919px) {
+    .header .flex {
+        padding: 0 30px;
+    }
+    
+    .box-body {
+        max-width: 450px;
         margin-right: 40px;
-        max-width: 400px;
-        height: 480px;
+    }
+    
+    .navbar a {
+        margin-left: 3rem;
+    }
+}
+
+/* Small Desktop (992px - 1199px) */
+@media (min-width: 992px) and (max-width: 1199px) {
+    .header .flex {
+        padding: 0 25px;
+    }
+    
+    .box-body {
+        max-width: 420px;
+        margin-right: 30px;
     }
     
     .form-header {
         font-size: 26px;
+        letter-spacing: 2.5px;
+    }
+    
+    .navbar a {
+        margin-left: 2.5rem;
+        font-size: 13px;
     }
 }
 
-@media (max-width: 992px) {
+/* Tablet Landscape (768px - 991px) */
+@media (min-width: 768px) and (max-width: 991px) {
     .wrapper {
+        padding: 25px;
         justify-content: center;
     }
     
     .box-body {
         margin-right: 0;
-        max-width: 380px;
-        height: 460px;
-    }
-    
-    .footer-container {
-        margin: 0 10rem;
-    }
-}
-
-@media (max-width: 768px) {
-    .wrapper {
-        min-height: calc(100vh - 100px);
-        padding: 20px;
-        justify-content: center;
-    }
-    
-    .box-body {
+        max-width: 400px;
         padding: 0 30px 25px;
-        max-width: 90%;
-        height: auto;
-        min-height: 420px;
-        margin: 0;
+    }
+    
+    .header .flex {
+        padding: 0 20px;
     }
     
     .form-header {
         font-size: 24px;
-        letter-spacing: 3px;
-    }
-    
-    .footer-container {
-        margin: 0 2rem;
-    }
-    
-    .footer-content {
-        flex-direction: column;
-        gap: 15px;
+        letter-spacing: 2px;
     }
     
     .navbar a {
         margin-left: 2rem;
+        font-size: 13px;
+        padding: 4px 8px;
     }
     
-    .btn-create-account {
-        padding: 9px 2rem;
+    .footer-container {
+        padding: 0 25px;
+    }
+    
+    .footer-content {
+        gap: 15px;
+    }
+    
+    .footer-links ul {
+        gap: 12px;
+    }
+}
+
+/* Tablet Portrait (576px - 767px) */
+@media (min-width: 576px) and (max-width: 767px) {
+    .wrapper {
+        padding: 20px;
+        min-height: calc(100vh - 110px);
+    }
+    
+    .box-body {
+        padding: 0 25px 20px;
+        max-width: 90%;
+        border-top: 35px solid rgb(1, 81, 1);
+    }
+    
+    .header .flex {
+        flex-direction: column;
+        gap: 15px;
+        padding: 10px 20px;
+    }
+    
+    .navbar {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .navbar a {
+        margin: 0;
+        font-size: 13px;
+    }
+    
+    .form-header {
+        font-size: 22px;
+        letter-spacing: 1.5px;
+        margin-top: 8px;
+    }
+    
+    .box-header {
+        top: -35px;
+        height: 35px;
+        margin-bottom: -15px;
+    }
+    
+    .input-box,
+    .form-group {
+        margin-bottom: 8px;
+    }
+    
+    .input-box input,
+    .input-box select,
+    .form-control {
+        height: 34px;
+        font-size: 13px;
+        padding-left: 10px;
+        padding-right: 32px;
+    }
+    
+    .btn-create-account,
+    .btn-reset,
+    .btn-secondary {
+        padding: 9px 1.5rem;
         font-size: 14px;
+    }
+    
+    .footer-container {
+        padding: 0 20px;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+        padding-bottom: 15px;
+    }
+    
+    .footer-links ul {
+        justify-content: center;
+    }
+}
+
+/* Mobile Landscape (480px - 575px) */
+@media (min-width: 480px) and (max-width: 575px) {
+    .wrapper {
+        padding: 15px;
+        min-height: calc(100vh - 100px);
+    }
+    
+    .box-body {
+        padding: 0 20px 15px;
+        max-width: 95%;
+        border-top: 30px solid rgb(1, 81, 1);
+    }
+    
+    .box-header {
+        top: -30px;
+        height: 30px;
+        margin-bottom: -12px;
+    }
+    
+    .form-header {
+        font-size: 20px;
+        letter-spacing: 1px;
+        margin-top: 6px;
+        padding-top: 8px;
+    }
+    
+    .step-indicator::before {
+        left: 8%;
+        right: 8%;
+        top: 14px;
+    }
+    
+    .step-number {
+        width: 26px;
+        height: 26px;
+        font-size: 12px;
+    }
+    
+    .step-title {
+        font-size: 10px;
+    }
+    
+    .input-box label,
+    .form-group label {
+        font-size: 13px;
+    }
+    
+    .btn-create-account,
+    .btn-reset,
+    .btn-secondary {
+        padding: 8px 1rem;
+        font-size: 13px;
+    }
+    
+    .already-account,
+    #forgot-password,
+    .resend-link,
+    .back-link {
+        font-size: 11px;
     }
     
     #togglePassword1 {
@@ -442,49 +904,125 @@ footer {
         height: 16px;
         right: 10px;
     }
+    
+    .footer-container {
+        padding: 0 15px;
+    }
+    
+    .footer-logo a {
+        font-size: 1.8rem;
+    }
+    
+    .footer-links ul li a {
+        font-size: 13px;
+    }
 }
 
-@media (max-width: 480px) {
+/* Mobile Portrait (320px - 479px) */
+@media (min-width: 320px) and (max-width: 479px) {
+    html {
+        font-size: 55%;
+    }
+    
     .wrapper {
-        padding: 15px;
+        padding: 10px;
+        min-height: calc(100vh - 90px);
     }
     
     .box-body {
-        padding: 0 25px 20px;
-        max-width: 95%;
-        border-top: 30px solid rgb(1, 81, 1);
-        margin: 0 auto;
+        padding: 0 15px 15px;
+        border-top: 25px solid rgb(1, 81, 1);
+    }
+    
+    .box-header {
+        top: -25px;
+        height: 25px;
+        margin-bottom: -10px;
     }
     
     .form-header {
-        font-size: 22px;
-        letter-spacing: 2px;
-        margin-top: 8px;
+        font-size: 18px;
+        letter-spacing: 0.5px;
+        margin-top: 5px;
+        padding-top: 6px;
     }
     
-    .input-box {
-        margin-bottom: 10px;
+    .box-form {
+        gap: 6px;
     }
     
-    .input-box input {
-        height: 34px;
-        font-size: 13px;
-        padding-left: 10px;
-        padding-right: 35px;
+    .step-indicator {
+        margin-bottom: 15px;
     }
     
-    .input-box label {
-        font-size: 13px;
+    .step-indicator::before {
+        left: 5%;
+        right: 5%;
+        top: 12px;
     }
     
-    .btn-create-account {
-        padding: 8px 1.5rem;
-        font-size: 13px;
+    .step-number {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+    
+    .step-title {
+        font-size: 9px;
+    }
+    
+    .step-content {
+        font-size: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .input-box,
+    .form-group {
+        margin-bottom: 6px;
+    }
+    
+    .input-box input,
+    .input-box select,
+    .form-control {
+        height: 32px;
+        font-size: 12px;
+        padding-left: 8px;
+        padding-right: 30px;
+    }
+    
+    .input-box label,
+    .form-group label {
+        font-size: 12px;
+        margin-bottom: 3px;
+    }
+    
+    .btn-create-account,
+    .btn-reset,
+    .btn-secondary {
+        padding: 7px 0.8rem;
+        font-size: 12px;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .action-buttons button {
+        min-width: 100%;
     }
     
     .already-account,
-    #forgot-password {
+    #forgot-password,
+    .resend-link,
+    .back-link {
+        font-size: 10px;
+    }
+    
+    .demo-note {
         font-size: 11px;
+        padding: 8px;
+        margin: 10px 0;
     }
     
     #togglePassword1 {
@@ -493,47 +1031,149 @@ footer {
         right: 8px;
     }
     
-    .form-actions {
+    .header .flex {
+        padding: 8px 15px;
+    }
+    
+    .navbar a {
+        font-size: 12px;
+        padding: 3px 6px;
+    }
+    
+    .footer-container {
+        padding: 0 10px;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        text-align: center;
         gap: 10px;
+        padding: 15px 0;
+    }
+    
+    .footer-links ul {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .footer-logo a {
+        font-size: 1.6rem;
+    }
+    
+    .footer-bottom p {
+        font-size: 11px;
     }
 }
 
-@media (max-width: 360px) {
+/* Very Small Mobile (below 320px) */
+@media (max-width: 319px) {
+    html {
+        font-size: 50%;
+    }
+    
+    .wrapper {
+        padding: 5px;
+    }
+    
     .box-body {
-        padding: 0 20px 15px;
-        border-top: 25px solid rgb(1, 81, 1);
+        padding: 0 10px 10px;
+        border-top: 20px solid rgb(1, 81, 1);
+    }
+    
+    .box-header {
+        top: -20px;
+        height: 20px;
+        margin-bottom: -8px;
     }
     
     .form-header {
-        font-size: 20px;
-        letter-spacing: 1px;
+        font-size: 16px;
+        letter-spacing: 0;
+        margin-top: 3px;
+        padding-top: 5px;
     }
     
-    .input-box input {
-        height: 32px;
-        font-size: 12px;
+    .step-indicator::before {
+        display: none;
     }
     
-    .btn-create-account {
-        padding: 7px 1rem;
-        font-size: 12px;
+    .step-title {
+        display: none;
     }
     
-    .already-account,
-    #forgot-password {
+    .step-number {
+        width: 22px;
+        height: 22px;
         font-size: 10px;
+    }
+    
+    .input-box input,
+    .input-box select,
+    .form-control {
+        height: 30px;
+        font-size: 11px;
+        padding-left: 6px;
+        padding-right: 25px;
+    }
+    
+    .btn-create-account,
+    .btn-reset,
+    .btn-secondary {
+        padding: 6px 0.5rem;
+        font-size: 11px;
     }
 }
 
-/* Ensure form fits nicely on all screens */
+/* Height-based adjustments for very short screens */
 @media (max-height: 600px) {
     .box-body {
-        height: auto;
-        min-height: 380px;
+        min-height: 350px;
     }
     
     .wrapper {
         align-items: flex-start;
         padding-top: 20px;
+        padding-bottom: 20px;
+    }
+    
+    .box-form {
+        max-height: 300px;
+    }
+}
+
+/* Height-based adjustments for tall screens */
+@media (min-height: 800px) {
+    .box-body {
+        min-height: 450px;
+    }
+    
+    .box-form {
+        gap: 12px;
+    }
+}
+
+/* Landscape orientation for mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    .wrapper {
+        padding: 10px;
+    }
+    
+    .box-body {
+        min-height: 300px;
+        max-height: 90vh;
+    }
+    
+    .box-form {
+        max-height: 250px;
+    }
+    
+    .header .flex {
+        padding: 5px 15px;
+    }
+    
+    .navbar a {
+        font-size: 11px;
+        margin-left: 1rem;
+        padding: 2px 4px;
     }
 }

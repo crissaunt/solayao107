@@ -133,10 +133,12 @@ function handleLogin(event) {
     .then(response => response.json())
     .then(data => {
         if (data.success) { 
-           
-                window.location.href = '../php/home.php';
-            
-            
+            // Use the redirect from PHP response if available, otherwise default
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                window.location.href = '../php/home.php'; // or your dashboard page
+            }
         } else {
             loginAttempts++;
 
