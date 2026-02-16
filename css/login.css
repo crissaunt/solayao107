@@ -1,3 +1,4 @@
+/* login.css */
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap');
 
 * {
@@ -15,11 +16,12 @@ html, body {
     overflow-x: hidden;
 }
 
-html {
+html{
     font-size: 62.5%;
+    overflow-x: hidden;
     scroll-behavior: smooth;
     scroll-padding-top: 6.5rem;
-}
+ }
 
 body {
     display: flex;
@@ -44,14 +46,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1440px;
+    max-width: 1430px;
     padding: 0 20px;
     width: 100%;
 }
 
 .header .flex .logo {
     font-size: 2rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 1px;
     color: green;
     text-decoration: none;
@@ -61,7 +63,7 @@ body {
     font-size: 14px;
     font-weight: 400;
     color: green;
-    margin-left: 2rem;
+    /* margin-left: 2rem; */
     text-decoration: none;
     padding: 5px 10px;
     border-radius: 3px;
@@ -70,7 +72,6 @@ body {
 
 .navbar a:hover {
     color: rgb(226, 175, 86);
-    background-color: rgba(0, 128, 0, 0.1);
 }
 
 /* UPDATED WRAPPER - FULL SCREEN */
@@ -95,7 +96,7 @@ body {
     background: rgb(251, 236, 217);
     padding: 0 30px 25px;
     width: 100%;
-    max-width: 450px;
+    max-width: 400px;
     min-height: 350px;
     border-radius: 5px;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);

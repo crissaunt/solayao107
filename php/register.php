@@ -3,7 +3,7 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); 
 header('Access-Control-Allow-Methods: POST');
 header('Access-Control-Allow-Headers: Content-Type');
-require 'db_connection.php';
+require_once __DIR__ . '/db_connection.php';
 
 session_start();
 
@@ -170,9 +170,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Hash password
         $hashed_password = password_hash($password, PASSWORD_BCRYPT);
         
-        // Insert new user
-        $sql_insert = "INSERT INTO users (id_number, email, age, contact_number, username, first_name, middle_name, last_name, extension_name, birthday, sex, password, street_purok, barangay, city_municipal, province, country, zipcode) 
-                      VALUES (:id_number, :email, :age, :contact_number, :username, :first_name, :middle_name, :last_name, :extension_name, :birthday, :sex, :password, :street_purok, :barangay, :city_municipal, :province, :country, :zipcode)";
+        // Insert new user with role_id = 3 (regular user)
+        $sql_insert = "INSERT INTO users (id_number, email, age, contact_number, username, first_name, middle_name, last_name, extension_name, birthday, sex, password, street_purok, barangay, city_municipal, province, country, zipcode, role_id, is_active) 
+                      VALUES (:id_number, :email, :age, :contact_number, :username, :first_name, :middle_name, :last_name, :extension_name, :birthday, :sex, :password, :street_purok, :barangay, :city_municipal, :province, :country, :zipcode, 3, true)";
         
         error_log("Executing insert with age: " . $age);
         
@@ -209,6 +209,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Get the inserted user_id
         $user_id = $conn->lastInsertId();
         
+        // Fix the sequence for security answers if needed
+        try {
+            // Check and fix the sequence
+            $conn->exec("SELECT setval('user_security_answers_answer_id_seq', (SELECT COALESCE(MAX(answer_id), 0) FROM user_security_answers))");
+        } catch (PDOException $e) {
+            error_log("Sequence fix warning: " . $e->getMessage());
+            // Continue anyway
+        }
+        
         // Insert security answers - HASH THE ANSWERS for security
         $security_answers = [
             ['question_id' => $security_question1, 'answer' => $security_answer1],
@@ -239,7 +248,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
         
+        // LOG THE REGISTRATION ACTIVITY (not VIEW)
+        try {
+            // Check if activity_logs table exists and log the registration
+            $log_query = "INSERT INTO activity_logs (table_name, record_id, action, new_data, performed_by, ip_address, user_agent) 
+                         VALUES (:table_name, :record_id, :action, :new_data, :performed_by, :ip_address, :user_agent)";
+            
+            // Prepare new data for logging (excluding sensitive info)
+            $new_user_data = [
+                'user_id' => $user_id,
+                'username' => $username,
+                'email' => $email,
+                'first_name' => $first_name,
+                'last_name' => $last_name,
+                'role_id' => 3
+            ];
+            
+            $log_stmt = $conn->prepare($log_query);
+            $log_stmt->execute([
+                ':table_name' => 'users',
+                ':record_id' => $user_id,
+                ':action' => 'INSERT',
+                ':new_data' => json_encode($new_user_data),
+                ':performed_by' => $user_id, // User registering themselves
+                ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+                ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
+            ]);
+            
+            error_log("Registration logged successfully for user ID: " . $user_id);
+            
+        } catch (PDOException $e) {
+            // Log table might not exist, just log to error log but don't fail registration
+            error_log("Could not log registration activity: " . $e->getMessage());
+        }
+        
         $conn->commit();
+        
+        // Log success to error log
+        error_log("=== REGISTRATION SUCCESS === User ID: " . $user_id . ", Username: " . $username);
+        
         echo json_encode(['status' => 'success', 'message' => 'Your Account is Successfully Created']);
         
     } catch(PDOException $e) {

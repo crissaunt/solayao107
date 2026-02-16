@@ -1,71 +1,81 @@
-/* Font and Base Settings */
+/* register.css */
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap');
 
-
-
-*{
+* {
     font-family: 'Rubik', sans-serif;
-    margin:0; padding:0;
+    margin: 0; 
+    padding: 0;
     box-sizing: border-box;
-    outline: none; border:none;
-   
- }
+    outline: none; 
+    border: none;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+}
+
 html{
     font-size: 62.5%;
     overflow-x: hidden;
     scroll-behavior: smooth;
     scroll-padding-top: 6.5rem;
  }
- 
 
 body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
     background-size: cover;
     color: #333;
     font-size: 16px;
     line-height: 1.6;
-    height: 100%;
-    width: 100%;
 }
 
 
-.header{
-    padding: 5px 0 5px 0;
+/* HEADER */
+.header {
+    padding: 5px 0;
     background-color: #eef3ee;
     box-shadow: 0 .5rem 1rem rgba(0,0,0,.1);
- }
- 
+    flex-shrink: 0;
+}
 
- .header .flex{
+.header .flex {
     margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1440px ;
-    position: relative;
-    
- }
- 
- .header .flex .logo{
+    max-width: 1440px;
+    padding: 0 30px;
+    width: 100%;
+}
+
+.header .flex .logo {
     font-size: 2rem;
     font-weight: 700;
     letter-spacing: 1px;
-    color:green;
+    color: green;
     text-decoration: none;
- }
-
- .navbar a{
-  font-size: 14px;
-  font-weight: 500;
-  color: green;
-  margin-left: 5rem;
-  text-decoration: none;
-  
 }
- .navbar a:hover{
-    color: rgb(226, 175, 86);  
- }
+
+.navbar a {
+    font-size: 14px;
+    font-weight: 400;
+    color: green;
+    margin-left: 4rem;
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+.navbar a:hover {
+    color: rgb(226, 175, 86);
+}
  
  /* body */
-
 .wrapper {
 
     display: flex;
