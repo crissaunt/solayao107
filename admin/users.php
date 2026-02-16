@@ -30,7 +30,15 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $role_filter = isset($_GET['role']) ? (int)$_GET['role'] : 0;
 
-// Handle Add User
+// Get admin role IDs to exclude
+$admin_roles = [];
+$admin_roles_query = "SELECT role_id FROM roles WHERE role_name IN ('Admin', 'Super Admin')";
+$admin_roles_stmt = $conn->query($admin_roles_query);
+while ($row = $admin_roles_stmt->fetch(PDO::FETCH_ASSOC)) {
+    $admin_roles[] = $row['role_id'];
+}
+
+// Handle Add User (keep existing code)
 if (isset($_POST['add_user'])) {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
@@ -150,7 +158,7 @@ if (isset($_POST['add_user'])) {
     exit();
 }
 
-// Handle Edit User
+// Handle Edit User (keep existing code)
 if (isset($_POST['edit_user'])) {
     $edit_user_id = (int)$_POST['user_id'];
     $username = $_POST['username'] ?? '';
@@ -290,7 +298,7 @@ if (isset($_POST['edit_user'])) {
     exit();
 }
 
-// Handle User Status Toggle
+// Handle User Status Toggle (keep existing code)
 if (isset($_POST['toggle_status']) && $is_admin) {
     $target_user_id = (int)$_POST['user_id'];
     $new_status = $_POST['new_status'] === 'true' ? true : false;
@@ -325,7 +333,7 @@ if (isset($_POST['toggle_status']) && $is_admin) {
     exit();
 }
 
-// Handle User Deletion (super admin only)
+// Handle User Deletion (super admin only) - keep existing code
 if (isset($_POST['delete_user']) && $is_super_admin) {
     $target_user_id = (int)$_POST['user_id'];
     
@@ -383,9 +391,20 @@ if (isset($_POST['delete_user']) && $is_super_admin) {
     exit();
 }
 
-// Build query conditions
+// Build query conditions - MODIFIED TO EXCLUDE ADMIN USERS
 $conditions = [];
 $params = [];
+
+// Exclude users with admin roles (role_id = 1 or 2)
+if (!empty($admin_roles)) {
+    $placeholders = [];
+    foreach ($admin_roles as $index => $role) {
+        $param_name = ":admin_role_" . $index;
+        $placeholders[] = $param_name;
+        $params[$param_name] = $role;
+    }
+    $conditions[] = "u.role_id NOT IN (" . implode(',', $placeholders) . ")";
+}
 
 if (!empty($search)) {
     $conditions[] = "(u.first_name ILIKE :search OR u.last_name ILIKE :search OR u.username ILIKE :search OR u.email ILIKE :search OR u.id_number ILIKE :search)";
@@ -404,22 +423,24 @@ if ($role_filter > 0) {
 
 $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-// Get total users count for pagination
+// Get total users count for pagination (excluding admins)
 $count_query = "
     SELECT COUNT(*) as total 
     FROM users u 
     LEFT JOIN roles r ON u.role_id = r.role_id 
     $where_clause
 ";
+
 $count_stmt = $conn->prepare($count_query);
 foreach ($params as $key => $value) {
     $count_stmt->bindValue($key, $value);
 }
 $count_stmt->execute();
-$total_users = $count_stmt->fetch(PDO::FETCH_ASSOC)['total'];
-$total_pages = ceil($total_users / $limit);
+$count_result = $count_stmt->fetch(PDO::FETCH_ASSOC);
+$total_users = $count_result ? (int)$count_result['total'] : 0;
+$total_pages = $total_users > 0 ? ceil($total_users / $limit) : 1;
 
-// Get users with their roles and activity stats
+// Get users with their roles and activity stats (excluding admins)
 $query = "
     SELECT 
         u.user_id,
@@ -480,7 +501,7 @@ $roles_query = "SELECT role_id, role_name FROM roles WHERE is_active = true ORDE
 $roles_stmt = $conn->query($roles_query);
 $roles = $roles_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get summary statistics
+// Get summary statistics (excluding admins)
 $stats_query = "
     SELECT 
         COUNT(*) as total_users,
@@ -490,7 +511,23 @@ $stats_query = "
         COUNT(CASE WHEN last_login >= NOW() - INTERVAL '24 hours' THEN 1 END) as online_24h
     FROM users
 ";
-$stats_stmt = $conn->query($stats_query);
+
+$stats_params = [];
+if (!empty($admin_roles)) {
+    $placeholders = [];
+    foreach ($admin_roles as $index => $role) {
+        $param_name = ":stats_admin_role_" . $index;
+        $placeholders[] = $param_name;
+        $stats_params[$param_name] = $role;
+    }
+    $stats_query .= " WHERE role_id NOT IN (" . implode(',', $placeholders) . ")";
+}
+
+$stats_stmt = $conn->prepare($stats_query);
+foreach ($stats_params as $key => $value) {
+    $stats_stmt->bindValue($key, $value);
+}
+$stats_stmt->execute();
 $stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
 
 // Log this page view
@@ -1355,17 +1392,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         </select>
                     </div>
                     
-                    <div class="filter-group">
-                        <label>Role</label>
-                        <select name="role">
-                            <option value="0">All Roles</option>
-                            <?php foreach ($roles as $role): ?>
-                            <option value="<?php echo $role['role_id']; ?>" <?php echo $role_filter == $role['role_id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($role['role_name']); ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+
                     
                     <div class="filter-actions">
                         <button type="submit" class="btn btn-primary">

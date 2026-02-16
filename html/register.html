@@ -23,7 +23,243 @@
         </div>
     </header>
 
+    <main class=" wrapper flex justify-center p-2 bg-cover" style="background-image: url('../images/bg-plants.jpg');">
+        <div class="box-body">
+            <div class="box-form">
+                <header class="form-header">Personal Information</header>
+                <form action="" method="POST" id="form">
+                    <!-- personal information -->
+                        <!-- personal information -->
+                            <!-- personal information -->
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="id">Id number:</label>
+                            <input type="text" id="id" name="id"
+                            placeholder="Ex. 0000-0000" >
+                            <div class="error"></div>
+                        </div>
+                        <div class="input-box">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username"
+                            placeholder="Ex. alex24" >
+                            <div class="error"></div>
+                        </div>
 
+                        <div class="input-box">
+                            <label for="email">Email:</label>
+                            <input type="text" id="email" name="email"
+                             placeholder="Ex. alex.ligalig@company.com" >
+                             <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="contact_number">Contact Number:</label>
+                            <input type="text" id="contact_number" name="contact_number"
+                            placeholder="Ex. 09123456789" >
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="fname">First Name:</label>
+                            <input type="text" id="fname" name="fname"
+                            placeholder="Ex. Alex" >
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box " >
+                            <label for="mname" style="display: flex;">Middle Name(<p style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
+                            <input type="text" id="mname" name="mname"
+                             placeholder="Ex. Dela Cruz" >
+                              <div class="error"></div>
+                        </div>
+
+
+                        <div class="input-box">
+                            <label for="lname">Last Name:</label>
+                            <input type="text" name="lname" id="lname"
+                              placeholder="Ex. Ligalig" >
+                              <div class="error"></div>
+                        </div>
+                        <div class="input-box">
+                            <label for="extend_name" style="display: flex;" >Extension Name(<p style="color: rgb(214, 51, 51);font-size: 12px;" >Optional</p>):</label>
+                            <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr.">       
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+
+
+                        <div class="input-box" >
+                            <label for="birthday">Birthday</label>
+                            <input type="date" id="birthday" name="birthday"  onchange="calculateAge()">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="age">Age</label>
+                            <input type="text" id="age" name="age"  oninput="calculateBirthdate()" placeholder="Enter your birthdate " >
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="gender">Sex</label>
+                            <select id="gender" name="sex" type="sex" >
+                                <option value="" hidden>Select Your Sex</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <Header class="form-header security-header">Security Questions</Header>
+                    <!-- Add this hidden div for general security questions error -->
+
+                    <div class="security-questions" style="display: flex; gap: 14px;width: 100%;  justify-content: center;">
+                        <div class="column">
+                            <div class="input-box" style="gap: 2px;">
+                                <div>
+                                    <label for="security_question1">Security Question 1:</label>
+                                    <select style="width: 100%;" id="security_question1" name="security_question1">  
+                                        <option value="" selected disabled>Select a question</option>
+                                    </select>
+                                    <div class="error" id="security_question1_error"></div>
+                                </div>
+                                <div>
+                                    <input type="text" id="security_answer1" name="security_answer1" placeholder="Enter your answer" style="width: 100%;">
+                                    <div class="error" id="security_answer1_error"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="column">
+                            <div class="input-box" style="gap: 2px;">
+                                <div>
+                                    <label for="security_question2">Security Question 2:</label>
+                                    <select style="width: 100%;" id="security_question2" name="security_question2">  
+                                        <option value="" selected disabled>Select a question</option>
+                                    </select>
+                                    <div class="error" id="security_question2_error"></div>
+                                </div>
+                                <div>
+                                    <input type="text" id="security_answer2" name="security_answer2" placeholder="Enter your answer" style="width: 100%;">
+                                    <div class="error" id="security_answer2_error"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="column">
+                            <div class="input-box" style="gap: 2px;">
+                                <div>
+                                    <label for="security_question3">Security Question 3:</label>
+                                    <select style="width: 100%;" id="security_question3" name="security_question3">  
+                                        <option value="" selected disabled>Select a question</option>
+                                    </select>
+                                    <div class="error" id="security_question3_error"></div>
+                                </div>
+                                <div>
+                                    <input type="text" id="security_answer3" name="security_answer3" placeholder="Enter your answer" style="width: 100%;">
+                                    <div class="error" id="security_answer3_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="column" >
+                        <!-- Password input with strength meter -->
+                        <div class="input-box">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password"  autocomplete="new-password" placeholder="Enter your password">
+                            <div class="strength-meter" id="strength-meter"></div>
+                            <span class="strength-text" id="strength-text">Password Strength: </span>
+                            <div class="error"></div>
+                        </div>
+
+                        <!-- Toggle password visibility -->
+                        <!-- <div class="input-box" style="margin-top:22px; width: 7%;">
+                            <img id="togglePassword" src="../images/close-eye.png" style="cursor: pointer; width: 20px;" class="fas" onclick="togglePasswordVisibility('password')">
+                        </div> -->
+                        <div class="" style="position: relative;">
+                            <img id="togglePassword1" src="../images/eye-icon.png" style="  position:absolute ;cursor: pointer; width: 20px; right: 23px;top:30px" class="fas1" onclick="togglePasswordVisibility1('password')">
+                        </div>
+
+
+                        <!-- Re-enter password input -->
+                        <div class="input-box">
+                            <label for="repassword">Enter Password again:</label>
+                            <input type="password" id="repassword" name="repassword"  autocomplete="new-password" placeholder="Enter your password again">
+                            <div class="error"></div>
+                        </div>
+
+
+
+                    </div>
+
+
+
+                        <!-- address -->
+                         <!-- address -->
+                          <!-- address -->
+
+                <Header class="form-header address-header">Personal Address</Header>
+                <div class="column">
+                    <div class="input-box">
+                        <label for="street_purok">Purok/Street:</label>
+                        <input type="text" name="street_purok" id="street_purok"
+                          >
+                         <div class="error"></div>
+                    </div>
+
+                    <div class="input-box">
+                        <label for="barangay">Barangay:</label>
+                        <input type="text" name="barangay" id="barangay"
+                      >
+                         <div class="error"></div>
+                    </div>
+
+                    <div class="input-box">
+                        <label for="city_municipal">City/Municipal:</label>
+                        <input type="text" name="city_municipal" id="city_municipal"
+                     >
+                        <div class="error"></div>
+                    </div>
+                </div>
+
+                <div class="column">
+                    <div class="input-box">
+                        <label for="province">Province</label>
+                        <input type="text" name="province" id="province"
+                      >
+                        <div class="error"></div>
+                    </div>
+                    <div class="input-box">
+                        <label for="country">Country</label>
+                        <input type="text" name="country" id="country"
+                         >
+                        <div class="error"></div>
+                    </div>
+
+                    <div class="input-box">
+                        <label for="zipcode">Zip Code</label>
+                        <input type="text" id="zipcode"  name="zipcode" ="Ex. 8000">
+
+                        <div class="error"></div>
+                    </div>
+                </div>
+                <div class="btn-create-account-container">
+                    <button type="submit" name="submit" class="btn-create-account">Create an account</button>        
+                </div>
+
+        </form>
+
+       <div class="already-account">
+            <p>Already have Account?<a href="login.html"> Click to Login</a></p>
+    </div>
+</main>
 
 
 <footer>
