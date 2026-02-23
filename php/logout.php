@@ -24,21 +24,21 @@ function logLogout($conn, $user_id, $username) {
             ':user_agent' => $user_agent
         ]);
         
-        // Log to admin_activity_logs if user is admin
+        // Log to admin_activity_logs if user is admin (role_id 1 or 2)
         if ($user_id) {
-            // Check if user is admin
-            $check_admin = $conn->prepare("SELECT admin_id, username FROM admin_users WHERE user_id = :user_id");
-            $check_admin->execute([':user_id' => $user_id]);
-            $admin_data = $check_admin->fetch(PDO::FETCH_ASSOC);
-            
-            if ($admin_data) {
+            // Get user role for logging check
+            $role_check = $conn->prepare("SELECT role_id FROM users WHERE user_id = :user_id");
+            $role_check->execute([':user_id' => $user_id]);
+            $user_role_id = $role_check->fetchColumn();
+
+            if ($user_role_id == 1 || $user_role_id == 2) {
                 $admin_activity_query = "INSERT INTO admin_activity_logs 
                                         (admin_id, username, action_type, table_name, ip_address, user_agent, endpoint, method, status_code, created_at) 
                                         VALUES (:admin_id, :username, 'LOGOUT', 'users', :ip_address, :user_agent, '/logout.php', 'GET', 200, NOW())";
                 $admin_activity_stmt = $conn->prepare($admin_activity_query);
                 $admin_activity_stmt->execute([
-                    ':admin_id' => $admin_data['admin_id'],
-                    ':username' => $admin_data['username'],
+                    ':admin_id' => $user_id, // admin_id is now user_id
+                    ':username' => $username,
                     ':ip_address' => $ip_address,
                     ':user_agent' => $user_agent
                 ]);
@@ -54,9 +54,10 @@ function logLogout($conn, $user_id, $username) {
         // Determine actor_type
         $actor_type = 'user';
         if ($user_id) {
-            $check_admin = $conn->prepare("SELECT admin_id FROM admin_users WHERE user_id = :user_id");
-            $check_admin->execute([':user_id' => $user_id]);
-            if ($check_admin->fetch(PDO::FETCH_ASSOC)) {
+            $check_role = $conn->prepare("SELECT role_id FROM users WHERE user_id = :user_id");
+            $check_role->execute([':user_id' => $user_id]);
+            $u_role_id = $check_role->fetchColumn();
+            if ($u_role_id == 1 || $u_role_id == 2) {
                 $actor_type = 'admin';
             }
         }
@@ -90,6 +91,6 @@ if ($user_id) {
 session_destroy();
 
 // Redirect to login page
-header("Location: ../html/login.html");
+header("Location: login.php");
 exit();
 ?>

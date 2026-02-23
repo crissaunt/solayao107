@@ -41,7 +41,7 @@ body {
 }
 
 .sidebar-toggle i {
-    font-size: 14px;
+    font-size: 13px;
     transition: transform 0.3s ease;
 }
 
@@ -81,7 +81,7 @@ body {
 }
 
 .sidebar-header .logo {
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 700;
     color: #d8f0d0;
     text-decoration: none;
@@ -92,7 +92,7 @@ body {
 
 .sidebar-header .logo span {
     color: #7fbf7f;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 400;
 }
 
@@ -111,7 +111,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 600;
     color: #e8f3e0;
     border: 2px solid #5f9e6b;
@@ -126,7 +126,7 @@ body {
 
 .user-name {
     font-weight: 600;
-    font-size: 14px;
+    font-size: 13px;
     color: #f0f9e8;
     white-space: nowrap;
     overflow: hidden;
@@ -134,7 +134,7 @@ body {
 }
 
 .user-role {
-    font-size: 12px;
+    font-size: 11px;
     color: #9fcca8;
     display: flex;
     align-items: center;
@@ -144,10 +144,10 @@ body {
 .role-badge {
     background: #2d5a3a;
     padding: 0.15rem 0.4rem;
-    font-size: 12px;
+    font-size: 11px;
     color: #d8f0d0;
     border: 1px solid #5f9e6b;
-    border-radius: 3px;
+    border-radius: 2px;
     white-space: nowrap;
 }
 
@@ -179,14 +179,14 @@ body {
     color: #c0e0c0;
     text-decoration: none;
     font-weight: 500;
-    font-size: 14px;
+    font-size: 13px;
     transition: all 0.2s ease;
     border-left: 3px solid transparent;
 }
 
 .nav-item a i {
     width: 18px;
-    font-size: 16px;
+    font-size: 13px;
     color: #7fbf7f;
     flex-shrink: 0;
     text-align: center;
@@ -219,7 +219,7 @@ body {
 
 .nav-header {
     padding: 0.4rem 1rem;
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: #9fcca8;
@@ -241,14 +241,14 @@ body {
     color: #f0b0b0;
     text-decoration: none;
     font-weight: 500;
-    font-size: 14px;
+    font-size: 13px;
     transition: all 0.2s ease;
     border-radius: 4px;
 }
 
 .logout-link i {
     width: 18px;
-    font-size: 16px;
+    font-size: 13px;
     color: #f0a0a0;
     flex-shrink: 0;
     text-align: center;
@@ -261,7 +261,7 @@ body {
 
 .system-info {
     margin-top: 0.5rem;
-    font-size: 12px;
+    font-size: 11px;
     color: #6f9f7f;
     text-align: center;
 }
@@ -300,7 +300,7 @@ body {
 
 .page-header h1 {
     color: #1c4c29;
-    font-size: 18px;
+    font-size: 13px;
     font-weight: 600;
     border-left: 8px solid #509c5b;
     padding-left: 1rem;
@@ -319,12 +319,12 @@ body {
     padding: 1rem;
     box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
     border: 1px solid #cbe6bf;
-    border-radius: 4px;
+    border-radius: 5px;
 }
 
 .stat-card h3 {
     color: #1d4d2d;
-    font-size: 14px;
+    font-size: 11px;
     margin-bottom: 0.3rem;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -334,7 +334,7 @@ body {
 }
 
 .stat-card .stat-value {
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 700;
     color: #0f4d1f;
 }
@@ -346,7 +346,7 @@ body {
     box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
     border: 1px solid #cbe6bf;
     margin-bottom: 1.5rem;
-    border-radius: 4px;
+    border-radius: 5px;
 }
 
 .filters-form {
@@ -365,7 +365,7 @@ body {
     display: block;
     margin-bottom: 0.3rem;
     color: #1d4d2d;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -375,10 +375,10 @@ body {
     width: 100%;
     padding: 0.6rem 0.8rem;
     border: 1px solid #afcfaa;
-    font-size: 14px;
+    font-size: 13px;
     background: white;
     color: #1e3a2f;
-    border-radius: 4px;
+    border-radius: 2px;
 }
 
 .filter-actions {
@@ -398,8 +398,8 @@ body {
     gap: 6px;
     border: 1px solid transparent;
     cursor: pointer;
-    font-size: 14px;
-    border-radius: 4px;
+    font-size: 13px;
+    border-radius: 2px;
     white-space: nowrap;
 }
 
@@ -429,7 +429,7 @@ body {
     padding: 1rem;
     box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
     border: 1px solid #cbe6bf;
-    border-radius: 4px;
+    border-radius: 5px;
     overflow-x: auto;
     margin-bottom: 1.5rem;
     -webkit-overflow-scrolling: touch;
@@ -439,7 +439,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     min-width: 900px;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .logs-table th {
@@ -462,11 +462,11 @@ body {
 /* Badges */
 .badge {
     padding: 0.25rem 0.6rem;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     display: inline-block;
     border: 1px solid transparent;
-    border-radius: 3px;
+    border-radius: 2px;
     white-space: nowrap;
 }
 
@@ -498,16 +498,16 @@ body {
     background: #e9d8fd;
     color: #553c9a;
     padding: 0.15rem 0.4rem;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     border: 1px solid #d6bcf5;
-    border-radius: 3px;
+    border-radius: 2px;
     display: inline-block;
 }
 
 .text-muted {
     color: #6b7c6b;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 /* JSON data display */
@@ -515,13 +515,13 @@ body {
     background: #f8f9fa;
     padding: 0.3rem;
     border: 1px solid #d8e8d0;
-    font-size: 12px;
+    font-size: 11px;
     font-family: monospace;
     max-width: 200px;
     overflow-x: auto;
     white-space: nowrap;
     margin-top: 0.2rem;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 /* Pagination */
@@ -544,8 +544,8 @@ body {
     transition: all 0.2s;
     min-width: 32px;
     text-align: center;
-    font-size: 14px;
-    border-radius: 4px;
+    font-size: 13px;
+    border-radius: 2px;
 }
 
 .pagination a:hover {
@@ -563,7 +563,7 @@ body {
     text-align: center;
     margin-top: 0.5rem;
     color: #6b7c6b;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 /* Modal */
@@ -589,12 +589,12 @@ body {
     margin: 1rem;
     box-shadow: 0 10px 30px rgba(32, 72, 52, 0.3);
     border: 1px solid #cbe6bf;
-    border-radius: 6px;
+    border-radius: 5px;
 }
 
 .modal-header h3 {
     color: #1c4c29;
-    font-size: 18px;
+    font-size: 13px;
     font-weight: 600;
     margin-bottom: 1rem;
 }
@@ -602,7 +602,7 @@ body {
 .modal-body {
     margin-bottom: 1.2rem;
     color: #1e3a2f;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .modal-footer {
@@ -678,7 +678,7 @@ body {
     }
     
     .page-header h1 {
-        font-size: 24px;
+        font-size: 13px;
     }
     
     .stats-grid {

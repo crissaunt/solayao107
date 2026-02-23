@@ -297,7 +297,7 @@ async function submitRegistration(formData) {
                 setTimeout(() => {
                     hideLoading();
                     resetForm();
-                    window.location.href = 'login.html';
+                    window.location.href = 'login.php';
                 }, 1500);
             }
         } catch (e) {

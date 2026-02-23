@@ -1,4 +1,13 @@
 
+<?php
+session_start();
+if (isset($_SESSION['user_id'])) {
+    if ($_SESSION['role_id'] == 3) {
+        header("Location: ../php/home.php");
+        exit();
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +15,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <!-- <link rel="stylesheet" href="../product/plant.css"> -->
-    <link href="../css/src/output.css" rel="stylesheet">
+    <link href="../assets/css/output.css" rel="stylesheet">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 
@@ -22,7 +31,7 @@
             <a href="#" class="font-bold text-lg">PLants.🌼</a>
             <nav aria-label="Main Navigation" class="flex space-x-6">
                 <a href="#" class="hover:text-green-700 transition-colors text-sm hover:border-b-1">Home</a>
-                <a id="signupToLogout" href="login.html" class="hover:text-green-700 transition-colors text-sm hover:border-b-1">Log in</a>
+                <a id="signupToLogout" href="../php/login.php" class="hover:text-green-700 transition-colors text-sm hover:border-b-1">Log in</a>
             </nav>
         </div>
     </header>
@@ -212,7 +221,7 @@
         </form>
        
        <div class="already-account">
-            <p>Already have Account?<a href="login.html"> Click to Login</a></p>
+            <p>Already have Account?<a href="../php/login.php"> Click to Login</a></p>
     </div>
 </main>
 
@@ -226,7 +235,7 @@
         </div>
         <div class="footer-links">
           <ul>
-            <li><a href="home.html">Home</a></li>
+            <li><a href="../php/home.php">Home</a></li>
             <!-- <li><a href="#">About Us</a></li>
             <li><a href="#">Services</a></li>
             <li><a href="#">Contact</a></li> -->
@@ -239,7 +248,7 @@
     </div>
   </footer>
   
- <script src="../javascript/register.js"></script>
+ <script src="../assets/js/register.js"></script>
 </body>
 </html>
 

@@ -3,15 +3,9 @@
 session_start();
 require_once __DIR__ . '/../php/db_connection.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+// Check if user is logged in and is Super Admin (role_id = 1)
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['role_id'] != 1) {
     header("Location: ../admin/login.php");
-    exit();
-}
-
-// Check if user is Super Admin (role_id = 1)
-if ($_SESSION['role_id'] != 1) {
-    header("Location: dashboard.php");
     exit();
 }
 
@@ -51,33 +45,17 @@ try {
         $users_by_role[] = $row;
     }
 
-    // Recent activity logs
+    // Recent activity logs fetch
     $query = "
-        SELECT a.*, u.username, u.first_name, u.last_name 
-        FROM activity_logs a 
-        LEFT JOIN users u ON a.performed_by = u.user_id 
+        SELECT a.*, a.action_type as action, u.username, u.first_name, u.last_name 
+        FROM admin_activity_logs a 
+        LEFT JOIN users u ON a.admin_id = u.user_id 
         ORDER BY a.created_at DESC 
         LIMIT 20
     ";
     $stmt = $conn->query($query);
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $recent_logs[] = $row;
-    }
-
-    // Log this page view
-    try {
-        $log_query = "INSERT INTO activity_logs (table_name, action, performed_by, ip_address, user_agent, created_at) 
-                     VALUES (:table_name, :action, :performed_by, :ip_address, :user_agent, NOW())";
-        $log_stmt = $conn->prepare($log_query);
-        $log_stmt->execute([
-            ':table_name' => 'admin',
-            ':action' => 'VIEW',
-            ':performed_by' => $user_id,
-            ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
-            ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
-        ]);
-    } catch (PDOException $e) {
-        // Log table might not exist, continue anyway
     }
 
 } catch (PDOException $e) {
@@ -104,8 +82,15 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Plants. System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/admin_style.css">
     <style>
+        /* Specific overrides for admin panel */
+        .admin-panel-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
         /* Admin panel specific styles - optimized */
         .container {
             padding: 1.2rem 1.5rem;
@@ -119,7 +104,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .page-header h1 {
             color: #1c4c29;
-            font-size: 24px;
+            font-size: 13px;
             font-weight: 600;
             border-left: 8px solid #509c5b;
             padding-left: 1rem;
@@ -128,7 +113,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .page-header p {
             color: #4a6b52;
-            font-size: 14px;
+            font-size: 11px;
             margin-left: 1.5rem;
         }
 
@@ -144,19 +129,19 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             padding: 1.2rem;
             box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
         }
 
         .stat-card h3 {
             color: #1d4d2d;
-            font-size: 12px;
+            font-size: 11px;
             margin-bottom: 0.3rem;
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
 
         .stat-card .stat-value {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
             color: #0f4d1f;
         }
@@ -172,7 +157,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #fafff9;
             box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
             overflow: hidden;
         }
 
@@ -181,7 +166,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             color: #1c4c29;
             padding: 0.8rem 1.2rem;
             font-weight: 600;
-            font-size: 16px;
+            font-size: 13px;
             border-bottom: 1px solid #bdd8b3;
         }
 
@@ -199,7 +184,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .role-list li:last-child {
@@ -215,10 +200,10 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #2a6e3b;
             color: white;
             padding: 0.15rem 0.8rem;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             border: 1px solid #1c4c2a;
-            border-radius: 3px;
+            border-radius: 2px;
         }
 
         .quick-actions {
@@ -236,12 +221,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             text-align: center;
             transition: all 0.2s;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 13px;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 0.4rem;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         .quick-action-btn:hover {
@@ -251,11 +236,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .quick-action-btn i {
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .section-title {
-            font-size: 1.2rem;
+            font-size: 13px;
             font-weight: 600;
             color: #1c4927;
             margin: 1.5rem 0 1rem;
@@ -268,7 +253,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             padding: 1rem;
             box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
@@ -277,7 +262,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 100%;
             border-collapse: collapse;
             min-width: 800px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .logs-table th {
@@ -305,8 +290,8 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .badge {
             padding: 0.25rem 0.6rem;
-            font-size: 12px;
-            border-radius: 3px;
+            font-size: 11px;
+            border-radius: 2px;
         }
 
         .user-info-cell {
@@ -316,12 +301,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         .user-name {
             font-weight: 600;
             color: #1c4c29;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .text-muted {
             color: #6b7c6b;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         /* Mobile menu button */
@@ -446,7 +431,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <li class="nav-item ">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Admin Management</span>
+                        <span>Staff Management</span>
                     </a>
                 </li>
             </ul>
@@ -465,33 +450,33 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
     <!-- Main Content -->
     <main class="main-content <?php echo $sidebar_closed === 'true' ? 'expanded' : ''; ?>" id="mainContent">
-        <div class="container">
-            <div class="page-header">
-                <h1>Administration Panel</h1>
-                <p>Welcome to the super admin panel. Here you can manage system settings and monitor activities.</p>
+        <div class="admin-panel-container">
+            <div class="welcome-section glass-card">
+                <h1>Administration Panel ⚙️</h1>
+                <p>Manage system settings and monitor global activities.</p>
             </div>
             
             <div class="stats-grid">
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Total Users</h3>
                     <div class="stat-value"><?php echo $stats['total_users'] ?? 0; ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>System Roles</h3>
                     <div class="stat-value"><?php echo $stats['total_roles'] ?? 0; ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Permissions</h3>
                     <div class="stat-value"><?php echo $stats['total_permissions'] ?? 0; ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Recent Activities</h3>
                     <div class="stat-value"><?php echo count($recent_logs); ?></div>
                 </div>
             </div>
             
             <div class="admin-sections">
-                <div class="admin-card">
+                <div class="admin-card glass-card">
                     <div class="admin-card-header">
                         <i class="fas fa-users" style="margin-right: 8px;"></i>
                         User Distribution by Role
@@ -515,31 +500,19 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                     </div>
                 </div>
                 
-                <div class="admin-card">
+                <div class="admin-card glass-card">
                     <div class="admin-card-header">
                         <i class="fas fa-bolt" style="margin-right: 8px;"></i>
                         Quick Actions
                     </div>
                     <div class="admin-card-body">
                         <div class="quick-actions">
-                            <a href="users.php" class="quick-action-btn">
-                                <i class="fas fa-users-cog"></i> Manage Users
-                            </a>
-                            <a href="#" class="quick-action-btn">
-                                <i class="fas fa-tags"></i> Manage Roles
-                            </a>
-                            <a href="#" class="quick-action-btn">
-                                <i class="fas fa-cog"></i> System Settings
-                            </a>
-                            <a href="logs.php" class="quick-action-btn">
-                                <i class="fas fa-history"></i> View All Logs
-                            </a>
-                            <a href="#" class="quick-action-btn">
-                                <i class="fas fa-database"></i> Backup DB
-                            </a>
-                            <a href="#" class="quick-action-btn">
-                                <i class="fas fa-trash-alt"></i> Clear Cache
-                            </a>
+                            <a href="users.php" class="btn-modern btn-primary"><i class="fas fa-users-cog"></i> Manage Users</a>
+                            <a href="#" class="btn-modern btn-secondary"><i class="fas fa-tags"></i> Manage Roles</a>
+                            <a href="#" class="btn-modern btn-secondary"><i class="fas fa-cog"></i> Settings</a>
+                            <a href="logs.php" class="btn-modern btn-secondary"><i class="fas fa-history"></i> View Logs</a>
+                            <a href="#" class="btn-modern btn-secondary"><i class="fas fa-database"></i> Backup DB</a>
+                            <a href="#" class="btn-modern btn-secondary"><i class="fas fa-trash-alt"></i> Clear Cache</a>
                         </div>
                     </div>
                 </div>
@@ -547,8 +520,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             
             <h2 class="section-title">Recent System Activities</h2>
             
-            <div class="logs-table-container">
-                <table class="logs-table">
+            <div class="logs-table-container glass-card">
+                <div class="table-container">
+                    <table class="modern-table">
                     <thead>
                         <tr>
                             <th>Time</th>

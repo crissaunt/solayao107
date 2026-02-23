@@ -19,14 +19,17 @@ if (!isset($_GET['id'])) {
 $admin_id = (int)$_GET['id'];
 
 try {
-    $query = "SELECT admin_id, username, email, first_name, last_name, role, is_active 
-              FROM admin_users 
-              WHERE admin_id = :admin_id";
+    $query = "SELECT u.user_id as admin_id, u.username, u.email, u.first_name, u.last_name, r.role_name as role, u.is_active 
+              FROM users u
+              JOIN roles r ON u.role_id = r.role_id
+              WHERE u.user_id = :admin_id AND u.role_id = 2";
     $stmt = $conn->prepare($query);
     $stmt->execute([':admin_id' => $admin_id]);
     $admin = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($admin) {
+        // Ensure is_active is returned as numeric for JS consistency
+        $admin['is_active'] = $admin['is_active'] ? 1 : 0;
         // Remove sensitive data if needed
         header('Content-Type: application/json');
         echo json_encode($admin);

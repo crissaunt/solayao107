@@ -1,11 +1,336 @@
 <?php
+// register.php — GET: show HTML form | POST: JSON registration logic
+
+session_start();
+
+// ── GET: show the registration page ──────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    // Block already-logged-in regular users
+    if (isset($_SESSION['user_id'])) {
+        $role_id = $_SESSION['role_id'] ?? 3;
+        if ($role_id == 3) {
+            header("Location: home.php");
+            exit();
+        }
+    }
+    ?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="../assets/css/register.css">
+    <!-- <link href="../assets/css/output.css" rel="stylesheet"> -->
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+
+<body>
+
+
+    <header class="header">
+        <div class="flex">
+            <a href="#" class="logo">Plants.&#127804;</a>
+            <nav class="navbar">
+                <a href="#">Home</a>
+                <a id="signupToLogout" href="login.php">Log in</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class=" wrapper flex justify-center p-2 bg-cover" style="background-image: url('../images/bg-plants.jpg');">
+        <div class="box-body">
+            <div class="box-form">
+                <header class="form-header">Personal Information</header>
+                <form action="" method="POST" id="form">
+                    <!-- personal information -->
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="id">Id number:</label>
+                            <input type="text" id="id" name="id" placeholder="Ex. 0000-0000">
+                            <div class="error"></div>
+                        </div>
+                        <div class="input-box">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username" placeholder="Ex. alex24">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="email">Email:</label>
+                            <input type="text" id="email" name="email" placeholder="Ex. alex.ligalig@company.com">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="contact_number">Contact Number:</label>
+                            <input type="text" id="contact_number" name="contact_number" placeholder="Ex. 09123456789">
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="fname">First Name:</label>
+                            <input type="text" id="fname" name="fname" placeholder="Ex. Alex">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box ">
+                            <label for="mname" style="display: flex;">Middle Name(<p
+                                    style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
+                            <input type="text" id="mname" name="mname" placeholder="Ex. Dela Cruz">
+                            <div class="error"></div>
+                        </div>
+
+
+                        <div class="input-box">
+                            <label for="lname">Last Name:</label>
+                            <input type="text" name="lname" id="lname" placeholder="Ex. Ligalig">
+                            <div class="error"></div>
+                        </div>
+                        <div class="input-box">
+                            <label for="extend_name" style="display: flex;">Extension Name(<p
+                                    style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
+                            <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr.">
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+
+                        <div class="input-box">
+                            <label for="birthday">Birthday</label>
+                            <input type="date" id="birthday" name="birthday" onchange="calculateAge()">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="age">Age</label>
+                            <input type="text" id="age" name="age" oninput="calculateBirthdate()"
+                                placeholder="Enter your birthdate ">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="gender">Sex</label>
+                            <select id="gender" name="sex" type="sex">
+                                <option value="" hidden>Select Your Sex</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <Header class="form-header security-header">Security Questions</Header>
+                    <!-- Add this hidden div for general security questions error -->
+
+                    <div class="security-questions"
+                        style="display: flex; gap: 14px;width: 100%;  justify-content: center;">
+                        <div class="column">
+                            <div class="input-box" style="gap: 2px;">
+                                <div>
+                                    <label for="security_question1">Security Question 1:</label>
+                                    <select style="width: 100%;" id="security_question1" name="security_question1">
+                                        <option value="" selected disabled>Select a question</option>
+                                    </select>
+                                    <div class="error" id="security_question1_error"></div>
+                                </div>
+                                <div>
+                                    <input type="text" id="security_answer1" name="security_answer1"
+                                        placeholder="Enter your answer" style="width: 100%;">
+                                    <div class="error" id="security_answer1_error"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="column">
+                            <div class="input-box" style="gap: 2px;">
+                                <div>
+                                    <label for="security_question2">Security Question 2:</label>
+                                    <select style="width: 100%;" id="security_question2" name="security_question2">
+                                        <option value="" selected disabled>Select a question</option>
+                                    </select>
+                                    <div class="error" id="security_question2_error"></div>
+                                </div>
+                                <div>
+                                    <input type="text" id="security_answer2" name="security_answer2"
+                                        placeholder="Enter your answer" style="width: 100%;">
+                                    <div class="error" id="security_answer2_error"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="column">
+                            <div class="input-box" style="gap: 2px;">
+                                <div>
+                                    <label for="security_question3">Security Question 3:</label>
+                                    <select style="width: 100%;" id="security_question3" name="security_question3">
+                                        <option value="" selected disabled>Select a question</option>
+                                    </select>
+                                    <div class="error" id="security_question3_error"></div>
+                                </div>
+                                <div>
+                                    <input type="text" id="security_answer3" name="security_answer3"
+                                        placeholder="Enter your answer" style="width: 100%;">
+                                    <div class="error" id="security_answer3_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="column">
+                        <!-- Password input with strength meter -->
+                        <div class="input-box">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" autocomplete="new-password"
+                                placeholder="Enter your password">
+                            <div class="strength-meter" id="strength-meter"></div>
+                            <span class="strength-text" id="strength-text">Password Strength: </span>
+                            <div class="error"></div>
+                        </div>
+
+                        <!-- Toggle password visibility -->
+                        <div class="" style="position: relative;">
+                            <img id="togglePassword1" src="../images/eye-icon.png"
+                                style="  position:absolute ;cursor: pointer; width: 20px; right: 23px;top:30px"
+                                class="fas1" onclick="togglePasswordVisibility1('password')">
+                        </div>
+
+
+                        <!-- Re-enter password input -->
+                        <div class="input-box">
+                            <label for="repassword">Enter Password again:</label>
+                            <input type="password" id="repassword" name="repassword" autocomplete="new-password"
+                                placeholder="Enter your password again">
+                            <div class="error"></div>
+                        </div>
+
+
+
+                    </div>
+
+
+
+                    <!-- address -->
+
+                    <Header class="form-header address-header">Personal Address</Header>
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="street_purok">Purok/Street:</label>
+                            <input type="text" name="street_purok" id="street_purok">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="barangay">Barangay:</label>
+                            <input type="text" name="barangay" id="barangay">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="city_municipal">City/Municipal:</label>
+                            <input type="text" name="city_municipal" id="city_municipal">
+                            <div class="error"></div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="input-box">
+                            <label for="province">Province</label>
+                            <input type="text" name="province" id="province">
+                            <div class="error"></div>
+                        </div>
+                        <div class="input-box">
+                            <label for="country">Country</label>
+                            <input type="text" name="country" id="country">
+                            <div class="error"></div>
+                        </div>
+
+                        <div class="input-box">
+                            <label for="zipcode">Zip Code</label>
+                            <input type="text" id="zipcode" name="zipcode" placeholder="Ex. 8000">
+
+                            <div class="error"></div>
+                        </div>
+                    </div>
+                    <div class="btn-create-account-container">
+                        <button type="submit" name="submit" class="btn-create-account">Create an account</button>
+                    </div>
+
+                </form>
+
+                <div class="already-account">
+                    <p>Already have Account?<a href="login.php"> Click to Login</a></p>
+                </div>
+    </main>
+
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <a href="#" class="logo">Plants.&#127804;</a>
+                </div>
+                <div class="footer-links">
+                    <ul>
+                        <li><a href="home.php">Home</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Plants.. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Load security questions from server
+            fetch('./get_security_questions.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const questions = data.questions;
+                        const select1 = document.getElementById('security_question1');
+                        const select2 = document.getElementById('security_question2');
+                        const select3 = document.getElementById('security_question3');
+
+                        // Clear existing options except the first one
+                        while (select1.options.length > 1) select1.remove(1);
+                        while (select2.options.length > 1) select2.remove(1);
+                        while (select3.options.length > 1) select3.remove(1);
+
+                        // Add questions to all dropdowns
+                        questions.forEach(question => {
+                            select1.add(new Option(question.question_text, question.question_id));
+                            select2.add(new Option(question.question_text, question.question_id));
+                            select3.add(new Option(question.question_text, question.question_id));
+                        });
+                    }
+                })
+                .catch(error => console.error('Error loading security questions:', error));
+        });
+    </script>
+
+    <script src="../assets/js/register.js"></script>
+</body>
+
+</html>
+    <?php
+    exit();
+}
+
+// ── POST: JSON registration logic ────────────────────────────────────────────
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); 
 header('Access-Control-Allow-Methods: POST');
 header('Access-Control-Allow-Headers: Content-Type');
 require_once __DIR__ . '/db_connection.php';
-
-session_start();
 
 // Enable error logging
 error_reporting(E_ALL);
@@ -35,9 +360,14 @@ if (strpos($_SERVER['CONTENT_TYPE'] ?? '', 'multipart/form-data') !== false) {
 
 error_log("Data received: " . print_r($data, true));
 
-if(isset($_SESSION['username'])){
-    echo json_encode(['status' => 'error', 'message' => 'You are already logged in']);
-    exit();
+if (isset($_SESSION['username'])) {
+    // If an admin is logged in (role_id 1 or 2), allow them to stay logged in and register others.
+    // Regular users (role_id 3) should be blocked to prevent accidental registration of multiple accounts.
+    $role_id = $_SESSION['role_id'] ?? 3;
+    if ($role_id == 3) {
+        echo json_encode(['status' => 'error', 'message' => 'You are already logged in. Please logout if you wish to register a new personal account.']);
+        exit();
+    }
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -73,7 +403,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $security_question3 = isset($data['security_question3']) && $data['security_question3'] !== '' ? (int)$data['security_question3'] : 0;
     $security_answer3   = isset($data['security_answer3']) ? trim($data['security_answer3']) : '';
 
-    // Debug output to see actual values
     error_log("=== DEBUG DATA ===");
     error_log("ID: " . $id_number);
     error_log("Email: " . $email);
@@ -211,7 +540,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // Fix the sequence for security answers if needed
         try {
-            // Check and fix the sequence
             $conn->exec("SELECT setval('user_security_answers_answer_id_seq', (SELECT COALESCE(MAX(answer_id), 0) FROM user_security_answers))");
         } catch (PDOException $e) {
             error_log("Sequence fix warning: " . $e->getMessage());
@@ -250,11 +578,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // LOG THE REGISTRATION ACTIVITY (not VIEW)
         try {
-            // Check if activity_logs table exists and log the registration
             $log_query = "INSERT INTO activity_logs (table_name, record_id, action, new_data, performed_by, ip_address, user_agent) 
                          VALUES (:table_name, :record_id, :action, :new_data, :performed_by, :ip_address, :user_agent)";
             
-            // Prepare new data for logging (excluding sensitive info)
             $new_user_data = [
                 'user_id' => $user_id,
                 'username' => $username,
@@ -270,7 +596,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 ':record_id' => $user_id,
                 ':action' => 'INSERT',
                 ':new_data' => json_encode($new_user_data),
-                ':performed_by' => $user_id, // User registering themselves
+                ':performed_by' => $user_id,
                 ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
                 ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
             ]);
@@ -278,13 +604,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             error_log("Registration logged successfully for user ID: " . $user_id);
             
         } catch (PDOException $e) {
-            // Log table might not exist, just log to error log but don't fail registration
             error_log("Could not log registration activity: " . $e->getMessage());
         }
         
         $conn->commit();
         
-        // Log success to error log
         error_log("=== REGISTRATION SUCCESS === User ID: " . $user_id . ", Username: " . $username);
         
         echo json_encode(['status' => 'success', 'message' => 'Your Account is Successfully Created']);

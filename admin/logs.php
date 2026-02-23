@@ -39,9 +39,9 @@ try {
     // 1. Activity logs table
     $q1 = "SELECT 
             a.created_at,
-            a.action,
+            a.action_type as action,
             a.table_name,
-            a.record_id,
+            a.record_id::text as record_id,
             a.ip_address::text as ip_address,
             a.user_agent,
             u.username,
@@ -51,9 +51,9 @@ try {
             a.new_data,
             NULL as description,
             'activity_log' as source,
-            a.performed_by as user_id
-          FROM activity_logs a 
-          LEFT JOIN users u ON a.performed_by = u.user_id 
+            a.admin_id as user_id
+          FROM admin_activity_logs a 
+          LEFT JOIN users u ON a.admin_id = u.user_id 
           WHERE 1=1";
         // WHERE (u.role_id IS NULL OR u.role_id > 1)";
 
@@ -62,7 +62,7 @@ try {
             la.attempt_time as created_at,
             CASE WHEN la.success THEN 'LOGIN_SUCCESS' ELSE 'LOGIN_FAILED' END as action,
             'login_attempts' as table_name,
-            la.attempt_id as record_id,
+            la.attempt_id::text as record_id,
             la.ip_address::text as ip_address,
             NULL as user_agent,
             la.username,
@@ -81,7 +81,7 @@ try {
             prl.attempt_time as created_at,
             'PASSWORD_RESET' as action,
             'password_reset' as table_name,
-            prl.log_id as record_id,
+            prl.log_id::text as record_id,
             prl.ip_address::text as ip_address,
             prl.user_agent,
             prl.email as username,
@@ -100,7 +100,7 @@ try {
             sal.created_at,
             sal.action,
             sal.category as table_name,
-            sal.log_id as record_id,
+            sal.log_id::text as record_id,
             sal.ip_address::text as ip_address,
             sal.user_agent,
             NULL as username,
@@ -173,7 +173,7 @@ try {
     
     // Get unique actions for filter dropdown
     $actions_query = "SELECT DISTINCT action FROM (
-                        SELECT action FROM activity_logs
+                        SELECT action_type as action FROM admin_activity_logs
                         UNION
                         SELECT CASE WHEN success THEN 'LOGIN_SUCCESS' ELSE 'LOGIN_FAILED' END as action FROM login_attempts
                         UNION
@@ -183,22 +183,6 @@ try {
                       ) as actions ORDER BY action";
     $actions_stmt = $conn->query($actions_query);
     $available_actions = $actions_stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    // Log this page view
-    try {
-        $log_query = "INSERT INTO activity_logs (table_name, action, performed_by, ip_address, user_agent, created_at) 
-                     VALUES (:table_name, :action, :performed_by, :ip_address, :user_agent, NOW())";
-        $log_stmt = $conn->prepare($log_query);
-        $log_stmt->execute([
-            ':table_name' => 'logs',
-            ':action' => 'VIEW',
-            ':performed_by' => $user_id,
-            ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
-            ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
-        ]);
-    } catch (PDOException $e) {
-        // Log table might not exist, continue anyway
-    }
     
 } catch (PDOException $e) {
     // Handle database errors
@@ -226,42 +210,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Activity Logs - Plants. System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/admin_style.css">
     <style>
-        /* Additional page-specific styles */
-        .logs-table-container {
-            background: #fafff9;
-            padding: 1rem;
-            box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
-            border: 1px solid #cbe6bf;
-            border-radius: 4px;
-            overflow-x: auto;
-            margin-bottom: 1.5rem;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .logs-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 900px;
-            font-size: 14px;
-        }
-
-        .logs-table th {
-            padding: 0.8rem 0.6rem;
-            text-align: left;
-            font-weight: 600;
-            color: #1d4d2d;
-            border-bottom: 2px solid #cbe6bf;
-            white-space: nowrap;
-            background: #f2f7f0;
-        }
-
-        .logs-table td {
-            padding: 0.7rem 0.6rem;
-            border-bottom: 1px solid #d8e8d0;
-            color: #1e3a2f;
-            vertical-align: top;
+        /* Specific overrides for logs page */
+        .logs-panel-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
         }
 
         .source-badge {
@@ -403,7 +359,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <li class="nav-item ">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Admin Management</span>
+                        <span>Staff Management</span>
                     </a>
                 </li>
                 <?php endif; ?>
@@ -423,32 +379,33 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
     <!-- Main Content -->
     <main class="main-content <?php echo $sidebar_closed === 'true' ? 'expanded' : ''; ?>" id="mainContent">
-        <div class="container">
-            <div class="page-header">
-                <h1>Activity Logs</h1>
+        <div class="logs-panel-container">
+            <div class="welcome-section glass-card">
+                <h1>Activity Logs 📜</h1>
+                <p>Track system changes and monitor administrative actions.</p>
             </div>
             
             <div class="stats-grid">
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Total Logs</h3>
                     <div class="stat-value"><?php echo number_format($total_records ?? 0); ?></div>
                 </div>
-                <div class="stat-card">
-                    <h3>Pages</h3>
+                <div class="stat-card glass-card">
+                    <h3>Total Pages</h3>
                     <div class="stat-value"><?php echo $total_pages ?? 1; ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Showing</h3>
                     <div class="stat-value"><?php echo count($logs); ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Current Page</h3>
                     <div class="stat-value"><?php echo $page; ?></div>
                 </div>
             </div>
             
-            <div class="filters-section">
-                <form method="GET" class="filters-form">
+            <div class="filters-section glass-card">
+                <form method="GET" class="filters-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
                     <div class="filter-group">
                         <label for="action">Action Type</label>
                         <select name="action" id="action">
@@ -456,11 +413,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <option value="INSERT" <?php echo $filter_action == 'INSERT' ? 'selected' : ''; ?>>INSERT</option>
                             <option value="UPDATE" <?php echo $filter_action == 'UPDATE' ? 'selected' : ''; ?>>UPDATE</option>
                             <option value="DELETE" <?php echo $filter_action == 'DELETE' ? 'selected' : ''; ?>>DELETE</option>
-                            <option value="VIEW" <?php echo $filter_action == 'VIEW' ? 'selected' : ''; ?>>VIEW</option>
                             <option value="LOGIN" <?php echo $filter_action == 'LOGIN' ? 'selected' : ''; ?>>LOGIN</option>
                             <option value="LOGIN_SUCCESS" <?php echo $filter_action == 'LOGIN_SUCCESS' ? 'selected' : ''; ?>>LOGIN SUCCESS</option>
                             <option value="LOGIN_FAILED" <?php echo $filter_action == 'LOGIN_FAILED' ? 'selected' : ''; ?>>LOGIN FAILED</option>
-                            <option value="LOGOUT" <?php echo $filter_action == 'LOGOUT' ? 'selected' : ''; ?>>LOGOUT</option>
                             <option value="PASSWORD_RESET" <?php echo $filter_action == 'PASSWORD_RESET' ? 'selected' : ''; ?>>PASSWORD RESET</option>
                         </select>
                     </div>
@@ -488,8 +443,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 </form>
             </div>
             
-            <div class="logs-table-container">
-                <table class="logs-table">
+            <div class="logs-list-section glass-card" style="margin-top: 2rem;">
+                <div class="table-container">
+                    <table class="modern-table">
                     <thead>
                         <tr>
                             <th>Timestamp</th>

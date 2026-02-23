@@ -3,25 +3,26 @@
 
 * {
     font-family: 'Rubik', sans-serif;
-    margin: 0; 
+    margin: 0;
     padding: 0;
     box-sizing: border-box;
-    outline: none; 
+    outline: none;
     border: none;
 }
 
-html, body {
+html,
+body {
     height: 100%;
     width: 100%;
     overflow-x: hidden;
 }
 
-html{
+html {
     font-size: 62.5%;
     overflow-x: hidden;
     scroll-behavior: smooth;
     scroll-padding-top: 6.5rem;
- }
+}
 
 body {
     display: flex;
@@ -37,7 +38,7 @@ body {
 .header {
     padding: 5px 0;
     background-color: #eef3ee;
-    box-shadow: 0 .5rem 1rem rgba(0,0,0,.1);
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1);
     flex-shrink: 0;
 }
 
@@ -80,7 +81,7 @@ body {
     display: flex;
     justify-content: end;
     align-items: center;
-    background-image: url(../images/login-bg.png);
+    background-image: url(../../images/login-bg.png);
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -191,24 +192,24 @@ body {
     width: 100%;
 }
 
-.input-box input:focus, 
+.input-box input:focus,
 .input-box select:focus {
     outline: 0;
     box-shadow: 0 0 6px rgba(76, 175, 80, 0.25);
     border-color: #2e7d32;
 }
 
-.input-box.error input, 
+.input-box.error input,
 .input-box.error select {
     border-color: #ff3860;
 }
 
-.input-box.error-password input, 
+.input-box.error-password input,
 .input-box.error-password select {
     border-color: #ff3860;
 }
 
-.input-box.success input, 
+.input-box.success input,
 .input-box.success select {
     border-color: #09c372;
 }
@@ -564,13 +565,13 @@ select {
 }
 
 .already-account a {
-    color: green;  
+    color: green;
     font-weight: 500;
     text-decoration: none;
 }
 
 .already-account a:hover {
-    color: rgb(192, 110, 63);  
+    color: rgb(192, 110, 63);
     text-decoration: underline;
 }
 
@@ -659,21 +660,22 @@ footer {
     color: rgb(178, 178, 178);
 }
 
-.footer-social a:hover, 
+.footer-social a:hover,
 .footer-links ul li a:hover {
-    color: rgb(211, 138, 97);  
+    color: rgb(211, 138, 97);
 }
 
 /* ========== RESPONSIVE BREAKPOINTS ========== */
 
 /* Large Desktop (1920px and above) */
 @media (min-width: 1920px) {
+
     .header .flex,
     .footer-container {
         max-width: 1800px;
         padding: 0 40px;
     }
-    
+
     .box-body {
         max-width: 500px;
         padding: 0 40px 30px;
@@ -685,12 +687,12 @@ footer {
     .header .flex {
         padding: 0 30px;
     }
-    
+
     .box-body {
         max-width: 450px;
         margin-right: 40px;
     }
-    
+
     .navbar a {
         margin-left: 3rem;
     }
@@ -701,17 +703,17 @@ footer {
     .header .flex {
         padding: 0 25px;
     }
-    
+
     .box-body {
         max-width: 420px;
         margin-right: 30px;
     }
-    
+
     .form-header {
         font-size: 26px;
         letter-spacing: 2.5px;
     }
-    
+
     .navbar a {
         margin-left: 2.5rem;
         font-size: 13px;
@@ -724,36 +726,36 @@ footer {
         padding: 25px;
         justify-content: center;
     }
-    
+
     .box-body {
         margin-right: 0;
         max-width: 400px;
         padding: 0 30px 25px;
     }
-    
+
     .header .flex {
         padding: 0 20px;
     }
-    
+
     .form-header {
         font-size: 24px;
         letter-spacing: 2px;
     }
-    
+
     .navbar a {
         margin-left: 2rem;
         font-size: 13px;
         padding: 4px 8px;
     }
-    
+
     .footer-container {
         padding: 0 25px;
     }
-    
+
     .footer-content {
         gap: 15px;
     }
-    
+
     .footer-links ul {
         gap: 12px;
     }
@@ -765,48 +767,48 @@ footer {
         padding: 20px;
         min-height: calc(100vh - 110px);
     }
-    
+
     .box-body {
         padding: 0 25px 20px;
         max-width: 90%;
         border-top: 35px solid rgb(1, 81, 1);
     }
-    
+
     .header .flex {
         flex-direction: column;
         gap: 15px;
         padding: 10px 20px;
     }
-    
+
     .navbar {
         width: 100%;
         display: flex;
         justify-content: center;
         gap: 10px;
     }
-    
+
     .navbar a {
         margin: 0;
         font-size: 13px;
     }
-    
+
     .form-header {
         font-size: 22px;
         letter-spacing: 1.5px;
         margin-top: 8px;
     }
-    
+
     .box-header {
         top: -35px;
         height: 35px;
         margin-bottom: -15px;
     }
-    
+
     .input-box,
     .form-group {
         margin-bottom: 8px;
     }
-    
+
     .input-box input,
     .input-box select,
     .form-control {
@@ -815,25 +817,25 @@ footer {
         padding-left: 10px;
         padding-right: 32px;
     }
-    
+
     .btn-create-account,
     .btn-reset,
     .btn-secondary {
         padding: 9px 1.5rem;
         font-size: 14px;
     }
-    
+
     .footer-container {
         padding: 0 20px;
     }
-    
+
     .footer-content {
         flex-direction: column;
         text-align: center;
         gap: 15px;
         padding-bottom: 15px;
     }
-    
+
     .footer-links ul {
         justify-content: center;
     }
@@ -845,75 +847,75 @@ footer {
         padding: 15px;
         min-height: calc(100vh - 100px);
     }
-    
+
     .box-body {
         padding: 0 20px 15px;
         max-width: 95%;
         border-top: 30px solid rgb(1, 81, 1);
     }
-    
+
     .box-header {
         top: -30px;
         height: 30px;
         margin-bottom: -12px;
     }
-    
+
     .form-header {
         font-size: 20px;
         letter-spacing: 1px;
         margin-top: 6px;
         padding-top: 8px;
     }
-    
+
     .step-indicator::before {
         left: 8%;
         right: 8%;
         top: 14px;
     }
-    
+
     .step-number {
         width: 26px;
         height: 26px;
         font-size: 12px;
     }
-    
+
     .step-title {
         font-size: 10px;
     }
-    
+
     .input-box label,
     .form-group label {
         font-size: 13px;
     }
-    
+
     .btn-create-account,
     .btn-reset,
     .btn-secondary {
         padding: 8px 1rem;
         font-size: 13px;
     }
-    
+
     .already-account,
     #forgot-password,
     .resend-link,
     .back-link {
         font-size: 11px;
     }
-    
+
     #togglePassword1 {
         width: 16px;
         height: 16px;
         right: 10px;
     }
-    
+
     .footer-container {
         padding: 0 15px;
     }
-    
+
     .footer-logo a {
         font-size: 1.8rem;
     }
-    
+
     .footer-links ul li a {
         font-size: 13px;
     }
@@ -924,64 +926,64 @@ footer {
     html {
         font-size: 55%;
     }
-    
+
     .wrapper {
         padding: 10px;
         min-height: calc(100vh - 90px);
     }
-    
+
     .box-body {
         padding: 0 15px 15px;
         border-top: 25px solid rgb(1, 81, 1);
     }
-    
+
     .box-header {
         top: -25px;
         height: 25px;
         margin-bottom: -10px;
     }
-    
+
     .form-header {
         font-size: 18px;
         letter-spacing: 0.5px;
         margin-top: 5px;
         padding-top: 6px;
     }
-    
+
     .box-form {
         gap: 6px;
     }
-    
+
     .step-indicator {
         margin-bottom: 15px;
     }
-    
+
     .step-indicator::before {
         left: 5%;
         right: 5%;
         top: 12px;
     }
-    
+
     .step-number {
         width: 24px;
         height: 24px;
         font-size: 11px;
     }
-    
+
     .step-title {
         font-size: 9px;
     }
-    
+
     .step-content {
         font-size: 12px;
         margin-bottom: 12px;
     }
-    
+
     .input-box,
     .form-group {
         margin-bottom: 6px;
     }
-    
+
     .input-box input,
     .input-box select,
     .form-control {
@@ -990,77 +992,77 @@ footer {
         padding-left: 8px;
         padding-right: 30px;
     }
-    
+
     .input-box label,
     .form-group label {
         font-size: 12px;
         margin-bottom: 3px;
     }
-    
+
     .btn-create-account,
     .btn-reset,
     .btn-secondary {
         padding: 7px 0.8rem;
         font-size: 12px;
     }
-    
+
     .action-buttons {
         flex-direction: column;
         gap: 8px;
     }
-    
+
     .action-buttons button {
         min-width: 100%;
     }
-    
+
     .already-account,
     #forgot-password,
     .resend-link,
     .back-link {
         font-size: 10px;
     }
-    
+
     .demo-note {
         font-size: 11px;
         padding: 8px;
         margin: 10px 0;
     }
-    
+
     #togglePassword1 {
         width: 14px;
         height: 14px;
         right: 8px;
     }
-    
+
     .header .flex {
         padding: 8px 15px;
     }
-    
+
     .navbar a {
         font-size: 12px;
         padding: 3px 6px;
     }
-    
+
     .footer-container {
         padding: 0 10px;
     }
-    
+
     .footer-content {
         flex-direction: column;
         text-align: center;
         gap: 10px;
         padding: 15px 0;
     }
-    
+
     .footer-links ul {
         flex-direction: column;
         gap: 8px;
     }
-    
+
     .footer-logo a {
         font-size: 1.6rem;
     }
-    
+
     .footer-bottom p {
         font-size: 11px;
     }
@@ -1071,43 +1073,43 @@ footer {
     html {
         font-size: 50%;
     }
-    
+
     .wrapper {
         padding: 5px;
     }
-    
+
     .box-body {
         padding: 0 10px 10px;
         border-top: 20px solid rgb(1, 81, 1);
     }
-    
+
     .box-header {
         top: -20px;
         height: 20px;
         margin-bottom: -8px;
     }
-    
+
     .form-header {
         font-size: 16px;
         letter-spacing: 0;
         margin-top: 3px;
         padding-top: 5px;
     }
-    
+
     .step-indicator::before {
         display: none;
     }
-    
+
     .step-title {
         display: none;
     }
-    
+
     .step-number {
         width: 22px;
         height: 22px;
         font-size: 10px;
     }
-    
+
     .input-box input,
     .input-box select,
     .form-control {
@@ -1116,7 +1118,7 @@ footer {
         padding-left: 6px;
         padding-right: 25px;
     }
-    
+
     .btn-create-account,
     .btn-reset,
     .btn-secondary {
@@ -1130,13 +1132,13 @@ footer {
     .box-body {
         min-height: 350px;
     }
-    
+
     .wrapper {
         align-items: flex-start;
         padding-top: 20px;
         padding-bottom: 20px;
     }
-    
+
     .box-form {
         max-height: 300px;
     }
@@ -1147,7 +1149,7 @@ footer {
     .box-body {
         min-height: 450px;
     }
-    
+
     .box-form {
         gap: 12px;
     }
@@ -1158,20 +1160,20 @@ footer {
     .wrapper {
         padding: 10px;
     }
-    
+
     .box-body {
         min-height: 300px;
         max-height: 90vh;
     }
-    
+
     .box-form {
         max-height: 250px;
     }
-    
+
     .header .flex {
         padding: 5px 15px;
     }
-    
+
     .navbar a {
         font-size: 11px;
         margin-left: 1rem;

@@ -3,8 +3,8 @@
 session_start();
 require_once __DIR__ . '/../php/db_connection.php';
 
-// Check if user is logged in and is super admin
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['role_id'] != 1) {
+// Check if user is logged in and is admin (Super Admin or Admin)
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || $_SESSION['role_id'] > 2) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit();

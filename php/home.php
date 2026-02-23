@@ -3,8 +3,21 @@
 session_start();
 include('db_connection.php'); 
 
-if(!isset($_SESSION['username'])){
-    header('Location: ../php/login.php');
+if(!isset($_SESSION['user_id']) || !isset($_SESSION['username'])){
+    header('Location: login.php');
+    exit();
+}
+
+// Only regular users (role_id 3) can enter here
+$role_id = $_SESSION['role_id'] ?? 3;
+if($role_id != 3){
+    // Redirect admins/superadmins to their dashboard
+    if($role_id == 1 || $role_id == 2){
+        header('Location: ../admin/dashboard.php');
+        exit();
+    }
+    // All others back to login
+    header('Location: login.php');
     exit();
 }
 
@@ -420,7 +433,7 @@ $full_name = $_SESSION['full_name'] ?? $username;
                     <li><a href="#">Account</a>
                         <ul>
                             <li><a href="#">Profile</a></li>
-                            <li><a href="../php/logout.php">Logout</a></li>
+                            <li><a href="logout.php">Logout</a></li>
                         </ul>
                     </li>      
                 </ul>    
@@ -431,7 +444,7 @@ $full_name = $_SESSION['full_name'] ?? $username;
                     <i class="fas fa-user"></i> <?php echo htmlspecialchars($full_name); ?>
                 </span>
                 <a href="#" class="fas fa-search"></a>
-                <a href="../php/logout.php"><button class="button-37 button-logout">Logout</button></a> <!-- CHANGED: from Login to Logout with special class -->
+                <a href="logout.php"><button class="button-37 button-logout">Logout</button></a>
             </div>
         </div>
     </header>

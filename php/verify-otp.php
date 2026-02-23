@@ -2,7 +2,8 @@
 // verify-otp.php
 date_default_timezone_set('Asia/Manila'); // ADD THIS
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 require_once 'db_connection.php';
 require_once 'reset-logic.php';

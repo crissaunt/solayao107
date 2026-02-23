@@ -15,79 +15,11 @@ if ($_SESSION['role_id'] != 1) {
     exit();
 }
 
-// Get the admin_id from the admin_users table using the session user_id
+// Get current admin info
 $user_id = $_SESSION['user_id'];
-$role_id = $_SESSION['role_id'] ?? 0;
+$role_id = $_SESSION['role_id'];
 $is_super_admin = ($role_id == 1);
-
-// Get the corresponding admin_id from admin_users table
-$admin_id = null;
-try {
-    $admin_check_query = "SELECT admin_id FROM admin_users WHERE user_id = :user_id";
-    $admin_check_stmt = $conn->prepare($admin_check_query);
-    $admin_check_stmt->execute([':user_id' => $user_id]);
-    $admin_result = $admin_check_stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($admin_result) {
-        $admin_id = $admin_result['admin_id'];
-    } else {
-        // If no admin record exists for this user, create one with a default password
-        // Get user data from users table
-        $user_query = "SELECT username, email, first_name, last_name FROM users WHERE user_id = :user_id";
-        $user_stmt = $conn->prepare($user_query);
-        $user_stmt->execute([':user_id' => $user_id]);
-        $user_data = $user_stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($user_data) {
-            // Generate a random password hash (they will use the same password from users table)
-            // In a real scenario, you might want to copy the password from users table or handle this differently
-            $default_password = bin2hex(random_bytes(16)); // Random password
-            $hashed_password = password_hash($default_password, PASSWORD_DEFAULT);
-            
-            // Insert into admin_users
-            $insert_admin_query = "INSERT INTO admin_users (user_id, username, email, password_hash, first_name, last_name, role, permissions, is_active, created_at) 
-                                  VALUES (:user_id, :username, :email, :password_hash, :first_name, :last_name, 'super_admin', '[\"all\"]', true, NOW()) 
-                                  RETURNING admin_id";
-            $insert_admin_stmt = $conn->prepare($insert_admin_query);
-            $insert_admin_stmt->execute([
-                ':user_id' => $user_id,
-                ':username' => $user_data['username'],
-                ':email' => $user_data['email'],
-                ':password_hash' => $hashed_password,
-                ':first_name' => $user_data['first_name'],
-                ':last_name' => $user_data['last_name']
-            ]);
-            $admin_result = $insert_admin_stmt->fetch(PDO::FETCH_ASSOC);
-            $admin_id = $admin_result['admin_id'];
-            
-            // Log that we created an admin record
-            error_log("Created admin record for user_id: $user_id with admin_id: $admin_id");
-        } else {
-            // Fallback - create a default admin record
-            $default_password = bin2hex(random_bytes(16));
-            $hashed_password = password_hash($default_password, PASSWORD_DEFAULT);
-            
-            $insert_admin_query = "INSERT INTO admin_users (user_id, username, email, password_hash, first_name, last_name, role, permissions, is_active, created_at) 
-                                  VALUES (:user_id, 'admin', 'admin@example.com', :password_hash, 'Admin', 'User', 'super_admin', '[\"all\"]', true, NOW()) 
-                                  RETURNING admin_id";
-            $insert_admin_stmt = $conn->prepare($insert_admin_query);
-            $insert_admin_stmt->execute([
-                ':user_id' => $user_id,
-                ':password_hash' => $hashed_password
-            ]);
-            $admin_result = $insert_admin_stmt->fetch(PDO::FETCH_ASSOC);
-            $admin_id = $admin_result['admin_id'];
-        }
-    }
-} catch (PDOException $e) {
-    error_log("Error getting admin_id: " . $e->getMessage());
-    // If we can't get admin_id, we'll use a fallback approach
-    // Try to get any super admin
-    $fallback_query = "SELECT admin_id FROM admin_users WHERE role = 'super_admin' ORDER BY admin_id LIMIT 1";
-    $fallback_stmt = $conn->query($fallback_query);
-    $fallback_result = $fallback_stmt->fetch(PDO::FETCH_ASSOC);
-    $admin_id = $fallback_result ? $fallback_result['admin_id'] : 1;
-}
+$admin_id = $user_id; // Standardized to use user_id
 
 // Pagination settings
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -124,25 +56,27 @@ if (isset($_POST['add_admin'])) {
 
     if (empty($errors)) {
         try {
-            // Check if username or email already exists in admin_users table
-            $check_query = "SELECT COUNT(*) FROM admin_users WHERE username = :username OR email = :email";
+            // Check if username or email already exists in users table
+            $check_query = "SELECT COUNT(*) FROM users WHERE username = :username OR email = :email";
             $check_stmt = $conn->prepare($check_query);
             $check_stmt->execute([':username' => $username, ':email' => $email]);
             if ($check_stmt->fetchColumn() > 0) {
                 $error = "Username or email already exists";
             } else {
-                // Insert new admin with password hashing
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                // Insert new admin into users table with password hashing
+                $hashed_password = password_hash($password, PASSWORD_BCRYPT);
                 
-                $insert_query = "INSERT INTO admin_users (
-                    user_id, username, email, password_hash, first_name, last_name, 
-                    role, permissions, is_active, created_at, created_by
+                $insert_query = "INSERT INTO users (
+                    username, email, password, first_name, last_name, 
+                    role_id, permissions, is_active, created_at, created_by
                 ) VALUES (
-                    NULL, :username, :email, :password_hash, :first_name, :last_name,
-                    :role, :permissions, :is_active, NOW(), :created_by
+                    :username, :email, :password, :first_name, :last_name,
+                    :role_id, :permissions, :is_active, NOW(), :created_by
                 )";
                 
-                // Default permissions based on role
+                $new_role_id = 2; // Forced to regular admin
+                
+                // Set default permissions for regular admin
                 $permissions = $admin_role === 'super_admin' 
                     ? '["all"]' 
                     : '["manage_users", "view_logs"]';
@@ -151,25 +85,25 @@ if (isset($_POST['add_admin'])) {
                 $insert_stmt->execute([
                     ':username' => $username,
                     ':email' => $email,
-                    ':password_hash' => $hashed_password,
+                    ':password' => $hashed_password,
                     ':first_name' => $first_name,
                     ':last_name' => $last_name,
-                    ':role' => $admin_role,
+                    ':role_id' => $new_role_id,
                     ':permissions' => $permissions,
-                    ':is_active' => $is_active,
-                    ':created_by' => $admin_id // Use admin_id, not user_id
+                    ':is_active' => $is_active ? 'true' : 'false',
+                    ':created_by' => $admin_id
                 ]);
 
-                $new_admin_id = $conn->lastInsertId();
+                $new_user_id = $conn->lastInsertId();
 
-                // Log the action in admin_activity_logs - using old_data/new_data instead of details
+                // Log the action in admin_activity_logs
                 $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, old_data, new_data, ip_address, created_at) 
-                             VALUES (:admin_id, 'INSERT', 'admin_users', :record_id, NULL, :new_data, :ip_address, NOW())";
+                             VALUES (:admin_id, 'INSERT', 'users', :record_id, NULL, :new_data, :ip_address, NOW())";
                 $log_stmt = $conn->prepare($log_query);
                 $log_stmt->execute([
                     ':admin_id' => $admin_id,
-                    ':record_id' => $new_admin_id,
-                    ':new_data' => json_encode(['username' => $username, 'email' => $email, 'role' => $admin_role]),
+                    ':record_id' => $new_user_id,
+                    ':new_data' => json_encode(['username' => $username, 'email' => $email, 'role_id' => $new_role_id]),
                     ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
                 ]);
 
@@ -185,17 +119,17 @@ if (isset($_POST['add_admin'])) {
 
 // Handle Edit Admin
 if (isset($_POST['edit_admin'])) {
-    $edit_admin_id = (int)$_POST['admin_id'];
+    $edit_user_id = (int)$_POST['admin_id']; // Using 'admin_id' from form but treating as user_id
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
     $first_name = $_POST['first_name'] ?? '';
     $last_name = $_POST['last_name'] ?? '';
     $admin_role = $_POST['admin_role'] ?? 'admin';
-    $is_active = isset($_POST['is_active']) ? 1 : 0;
+    $is_active = isset($_POST['is_active']) ? true : false;
     $new_password = $_POST['new_password'] ?? '';
 
     // Don't allow changing own role or deactivating self
-    if ($edit_admin_id == $admin_id) {
+    if ($edit_user_id == $admin_id) {
         $error = "You cannot edit your own admin account through this form";
     } else {
         // Validation
@@ -208,27 +142,26 @@ if (isset($_POST['edit_admin'])) {
 
         if (empty($errors)) {
             try {
-                // Check if username or email already exists for other admins
-                $check_query = "SELECT COUNT(*) FROM admin_users WHERE (username = :username OR email = :email) AND admin_id != :admin_id";
+                // Check if username or email already exists for other users
+                $check_query = "SELECT COUNT(*) FROM users WHERE (username = :username OR email = :email) AND user_id != :user_id";
                 $check_stmt = $conn->prepare($check_query);
                 $check_stmt->execute([
                     ':username' => $username,
                     ':email' => $email,
-                    ':admin_id' => $edit_admin_id
+                    ':user_id' => $edit_user_id
                 ]);
                 
                 if ($check_stmt->fetchColumn() > 0) {
                     $error = "Username or email already exists";
                 } else {
                     // Get old data for logging
-                    $old_data_query = "SELECT * FROM admin_users WHERE admin_id = :admin_id";
+                    $old_data_query = "SELECT * FROM users WHERE user_id = :user_id";
                     $old_data_stmt = $conn->prepare($old_data_query);
-                    $old_data_stmt->execute([':admin_id' => $edit_admin_id]);
+                    $old_data_stmt->execute([':user_id' => $edit_user_id]);
                     $old_data = $old_data_stmt->fetch(PDO::FETCH_ASSOC);
                     
-                    // Check if old_data is valid
                     if (!$old_data) {
-                        $error = "Admin not found";
+                        $error = "User not found";
                     } else {
                         // Build update query
                         $update_fields = [
@@ -236,21 +169,23 @@ if (isset($_POST['edit_admin'])) {
                             'email = :email',
                             'first_name = :first_name',
                             'last_name = :last_name',
-                            'role = :role',
+                            'role_id = :role_id',
                             'is_active = :is_active',
                             'updated_at = NOW()',
                             'updated_by = :updated_by'
                         ];
+
+                        $new_role_id = 2; // Forced to regular admin
 
                         $params = [
                             ':username' => $username,
                             ':email' => $email,
                             ':first_name' => $first_name,
                             ':last_name' => $last_name,
-                            ':role' => $admin_role,
-                            ':is_active' => $is_active,
+                            ':role_id' => $new_role_id,
+                            ':is_active' => $is_active ? 'true' : 'false',
                             ':updated_by' => $admin_id,
-                            ':admin_id' => $edit_admin_id
+                            ':user_id' => $edit_user_id
                         ];
 
                         // Update permissions based on role
@@ -260,21 +195,21 @@ if (isset($_POST['edit_admin'])) {
 
                         // Add password if provided
                         if (!empty($new_password)) {
-                            $update_fields[] = 'password_hash = :password_hash';
-                            $params[':password_hash'] = password_hash($new_password, PASSWORD_DEFAULT);
+                            $update_fields[] = 'password = :password';
+                            $params[':password'] = password_hash($new_password, PASSWORD_BCRYPT);
                         }
 
-                        $update_query = "UPDATE admin_users SET " . implode(', ', $update_fields) . " WHERE admin_id = :admin_id";
+                        $update_query = "UPDATE users SET " . implode(', ', $update_fields) . " WHERE user_id = :user_id";
                         $update_stmt = $conn->prepare($update_query);
                         $update_stmt->execute($params);
 
                         // Log the action
                         $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, old_data, new_data, ip_address, created_at) 
-                                     VALUES (:admin_id, 'UPDATE', 'admin_users', :record_id, :old_data, :new_data, :ip_address, NOW())";
+                                     VALUES (:admin_id, 'UPDATE', 'users', :record_id, :old_data, :new_data, :ip_address, NOW())";
                         $log_stmt = $conn->prepare($log_query);
                         $log_stmt->execute([
                             ':admin_id' => $admin_id,
-                            ':record_id' => $edit_admin_id,
+                            ':record_id' => $edit_user_id,
                             ':old_data' => json_encode($old_data),
                             ':new_data' => json_encode($_POST),
                             ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
@@ -294,45 +229,45 @@ if (isset($_POST['edit_admin'])) {
 
 // Handle Toggle Status
 if (isset($_POST['toggle_status'])) {
-    $target_admin_id = (int)$_POST['admin_id'];
-    $new_status = (int)$_POST['new_status'];
+    $target_user_id = (int)$_POST['admin_id'];
+    $new_status = $_POST['new_status'] == '1' ? 'true' : 'false';
     
-    if ($target_admin_id != $admin_id) {
+    if ($target_user_id != $admin_id) {
         try {
             // Get old data for logging
-            $old_data_query = "SELECT is_active FROM admin_users WHERE admin_id = :admin_id";
+            $old_data_query = "SELECT is_active FROM users WHERE user_id = :user_id";
             $old_data_stmt = $conn->prepare($old_data_query);
-            $old_data_stmt->execute([':admin_id' => $target_admin_id]);
-            $old_status = $old_data_stmt->fetchColumn();
+            $old_data_stmt->execute([':user_id' => $target_user_id]);
+            $row = $old_data_stmt->fetch(PDO::FETCH_ASSOC);
             
-            // Check if old_status is valid
-            if ($old_status !== false) {
-                $update_query = "UPDATE admin_users SET is_active = :is_active, updated_at = NOW(), updated_by = :updated_by WHERE admin_id = :admin_id";
+            if ($row) {
+                $old_status_val = $row['is_active'];
+                $update_query = "UPDATE users SET is_active = :is_active, updated_at = NOW(), updated_by = :updated_by WHERE user_id = :user_id";
                 $update_stmt = $conn->prepare($update_query);
                 $update_stmt->execute([
                     ':is_active' => $new_status,
                     ':updated_by' => $admin_id,
-                    ':admin_id' => $target_admin_id
+                    ':user_id' => $target_user_id
                 ]);
                 
                 // Log the action
                 $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, old_data, new_data, ip_address, created_at) 
-                             VALUES (:admin_id, 'TOGGLE_STATUS', 'admin_users', :record_id, :old_data, :new_data, :ip_address, NOW())";
+                             VALUES (:admin_id, 'TOGGLE_STATUS', 'users', :record_id, :old_data, :new_data, :ip_address, NOW())";
                 $log_stmt = $conn->prepare($log_query);
                 $log_stmt->execute([
                     ':admin_id' => $admin_id,
-                    ':record_id' => $target_admin_id,
-                    ':old_data' => json_encode(['is_active' => $old_status]),
-                    ':new_data' => json_encode(['is_active' => $new_status]),
+                    ':record_id' => $target_user_id,
+                    ':old_data' => json_encode(['is_active' => $old_status_val ? 1 : 0]),
+                    ':new_data' => json_encode(['is_active' => $new_status === 'true' ? 1 : 0]),
                     ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
                 ]);
                 
                 $message = "Admin status updated successfully";
             } else {
-                $error = "Admin not found";
+                $error = "User not found";
             }
         } catch (PDOException $e) {
-            $error = "Failed to update admin status: " . $e->getMessage();
+            $error = "Failed to update status: " . $e->getMessage();
         }
     } else {
         $error = "You cannot change your own status";
@@ -341,56 +276,51 @@ if (isset($_POST['toggle_status'])) {
 
 // Handle Delete Admin
 if (isset($_POST['delete_admin'])) {
-    $delete_admin_id = (int)$_POST['admin_id'];
+    $delete_user_id = (int)$_POST['admin_id'];
     
-    // Don't allow deleting yourself
-    if ($delete_admin_id == $admin_id) {
+    if ($delete_user_id == $admin_id) {
         $error = "You cannot delete your own account";
     } else {
         try {
-            // Start transaction
             $conn->beginTransaction();
             
-            // Get admin data for logging
-            $select_query = "SELECT * FROM admin_users WHERE admin_id = :admin_id";
+            // Get user data for logging
+            $select_query = "SELECT * FROM users WHERE user_id = :user_id";
             $select_stmt = $conn->prepare($select_query);
-            $select_stmt->execute([':admin_id' => $delete_admin_id]);
-            $admin_data = $select_stmt->fetch(PDO::FETCH_ASSOC);
+            $select_stmt->execute([':user_id' => $delete_user_id]);
+            $user_data = $select_stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($admin_data) {
-                // First, handle foreign key constraints
-                // Set created_by and updated_by to NULL or to current admin
-                $conn->prepare("UPDATE admin_users SET created_by = NULL WHERE created_by = :admin_id")->execute([':admin_id' => $delete_admin_id]);
-                $conn->prepare("UPDATE admin_users SET updated_by = NULL WHERE updated_by = :admin_id")->execute([':admin_id' => $delete_admin_id]);
+            if ($user_data) {
+                // Update references in admin_activity_logs (if they were the admin performing actions)
+                $conn->prepare("UPDATE admin_activity_logs SET admin_id = :current_admin WHERE admin_id = :deleted_admin")
+                    ->execute([':current_admin' => $admin_id, ':deleted_admin' => $delete_user_id]);
                 
-                // Update admin_activity_logs to point to current admin
-                $conn->prepare("UPDATE admin_activity_logs SET admin_id = ? WHERE admin_id = ?")
-                    ->execute([$admin_id, $delete_admin_id]);
-                
-                // Delete the admin
-                $delete_query = "DELETE FROM admin_users WHERE admin_id = :admin_id";
+                // Delete user (or just change role back to 3 if we want to keep the record)
+                // For "Delete Admin", we might just want to demote them to regular user or delete them.
+                // Assuming "Delete Admin" means remove the account entirely for this refined system.
+                $delete_query = "DELETE FROM users WHERE user_id = :user_id";
                 $delete_stmt = $conn->prepare($delete_query);
-                $delete_stmt->execute([':admin_id' => $delete_admin_id]);
+                $delete_stmt->execute([':user_id' => $delete_user_id]);
                 
                 // Log the deletion
                 $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, old_data, ip_address, created_at) 
-                             VALUES (:admin_id, 'DELETE', 'admin_users', :record_id, :old_data, :ip_address, NOW())";
+                             VALUES (:admin_id, 'DELETE', 'users', :record_id, :old_data, :ip_address, NOW())";
                 $log_stmt = $conn->prepare($log_query);
                 $log_stmt->execute([
                     ':admin_id' => $admin_id,
-                    ':record_id' => $delete_admin_id,
-                    ':old_data' => json_encode($admin_data),
+                    ':record_id' => $delete_user_id,
+                    ':old_data' => json_encode($user_data),
                     ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
                 ]);
                 
                 $conn->commit();
                 $message = "Admin deleted successfully";
             } else {
-                $error = "Admin not found";
+                $error = "User not found";
             }
         } catch (PDOException $e) {
             $conn->rollBack();
-            $error = "Failed to delete admin: " . $e->getMessage();
+            $error = "Failed to delete: " . $e->getMessage();
         }
     }
 }
@@ -400,12 +330,14 @@ if (isset($_GET['export'])) {
     // Get all admins for export
     $export_query = "
         SELECT 
-            username, email, first_name, last_name, role, permissions,
-            is_active, created_at, last_login,
-            (SELECT username FROM admin_users a2 WHERE a2.admin_id = a.created_by) as created_by_username,
-            (SELECT username FROM admin_users a2 WHERE a2.admin_id = a.updated_by) as updated_by_username
-        FROM admin_users a
-        ORDER BY created_at DESC
+            a.username, a.email, a.first_name, a.last_name, r.role_name as role, a.permissions,
+            a.is_active, a.created_at, a.last_login,
+            (SELECT username FROM users a2 WHERE a2.user_id = a.created_by) as created_by_username,
+            (SELECT username FROM users a2 WHERE a2.user_id = a.updated_by) as updated_by_username
+        FROM users a
+        JOIN roles r ON a.role_id = r.role_id
+        WHERE a.role_id IN (1, 2)
+        ORDER BY a.created_at DESC
     ";
     $export_stmt = $conn->query($export_query);
     $export_admins = $export_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -444,8 +376,8 @@ if (isset($_GET['export'])) {
     exit();
 }
 
-// Build query conditions for admin list
-$conditions = [];
+// Build query conditions for staff list
+$conditions = ["a.role_id = 2"]; // Only manage regular admins (Staff)
 $params = [];
 
 if (!empty($search)) {
@@ -453,22 +385,19 @@ if (!empty($search)) {
     $params[':search'] = "%$search%";
 }
 
-if ($role_filter !== 'all') {
-    $conditions[] = "a.role = :role";
-    $params[':role'] = $role_filter;
-}
+// Role filter removed as it's now exclusively for regular admins
 
 if ($status_filter !== 'all') {
-    $is_active = ($status_filter === 'active') ? 'true' : 'false';
-    $conditions[] = "a.is_active = $is_active";
+    $is_active_val = ($status_filter === 'active') ? 'true' : 'false';
+    $conditions[] = "a.is_active = $is_active_val";
 }
 
-$where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+$where_clause = "WHERE " . implode(" AND ", $conditions);
 
 // Get total admins count for pagination
 $count_query = "
     SELECT COUNT(*) as total 
-    FROM admin_users a 
+    FROM users a 
     $where_clause
 ";
 $count_stmt = $conn->prepare($count_query);
@@ -483,12 +412,12 @@ $total_pages = $total_admins > 0 ? ceil($total_admins / $limit) : 1;
 // Get admins with their details
 $query = "
     SELECT 
-        a.admin_id,
+        a.user_id as admin_id,
         a.username,
         a.email,
         a.first_name,
         a.last_name,
-        a.role,
+        r.role_name as role,
         a.permissions,
         a.is_active,
         a.created_at,
@@ -496,17 +425,14 @@ $query = "
         a.updated_at,
         creator.username as created_by_username,
         updater.username as updated_by_username,
-        (SELECT COUNT(*) FROM admin_activity_logs l WHERE l.admin_id = a.admin_id) as activity_count
-    FROM admin_users a
-    LEFT JOIN admin_users creator ON a.created_by = creator.admin_id
-    LEFT JOIN admin_users updater ON a.updated_by = updater.admin_id
+        (SELECT COUNT(*) FROM admin_activity_logs l WHERE l.admin_id = a.user_id) as activity_count
+    FROM users a
+    JOIN roles r ON a.role_id = r.role_id
+    LEFT JOIN users creator ON a.created_by = creator.user_id
+    LEFT JOIN users updater ON a.updated_by = updater.user_id
     $where_clause
     ORDER BY 
-        CASE 
-            WHEN a.role = 'super_admin' THEN 1
-            WHEN a.role = 'admin' THEN 2
-            ELSE 3
-        END,
+        a.role_id ASC,
         a.created_at DESC
     LIMIT :limit OFFSET :offset
 ";
@@ -521,9 +447,13 @@ $stmt->execute();
 $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get current admin info
-$current_admin_query = "SELECT first_name, last_name, username, role FROM admin_users WHERE admin_id = :admin_id";
+$current_admin_query = "
+    SELECT u.first_name, u.last_name, u.username, r.role_name as role 
+    FROM users u 
+    JOIN roles r ON u.role_id = r.role_id 
+    WHERE u.user_id = :user_id";
 $current_admin_stmt = $conn->prepare($current_admin_query);
-$current_admin_stmt->execute([':admin_id' => $admin_id]);
+$current_admin_stmt->execute([':user_id' => $user_id]);
 $current_admin = $current_admin_stmt->fetch(PDO::FETCH_ASSOC);
 
 // Provide default values if current admin not found
@@ -549,11 +479,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Management - Plants. System</title>
+    <title>Staff Management - Plants. System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/sidebar.css">
     <style>
-        /* Admin Management specific styles - same as before */
+        /* Staff Management specific styles - same as before */
         .container {
             padding: 1.2rem 1.5rem;
             max-width: 1400px;
@@ -571,7 +501,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .page-header h1 {
             color: #1c4c29;
-            font-size: 1.8rem;
+            font-size: 13px;
             font-weight: 600;
             border-left: 8px solid #509c5b;
             padding-left: 1rem;
@@ -585,8 +515,8 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .btn {
             padding: 0.6rem 1.2rem;
-            font-size: 0.9rem;
-            border-radius: 4px;
+            font-size: 13px;
+            border-radius: 2px;
             border: none;
             cursor: pointer;
             display: inline-flex;
@@ -644,12 +574,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .btn-info {
-            background: #17a2b8;
-            color: white;
+            background: #FFA500;
+            color: black;
+            border: none; 
         }
 
         .btn-info:hover {
-            background: #138496;
+            background: #E69500; /* A clearly darker orange */
+            cursor: pointer;    /* Ensures the hand icon appears */
         }
 
         /* Filters */
@@ -657,7 +589,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #fafff9;
             padding: 1rem;
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
             margin-bottom: 1.5rem;
         }
 
@@ -677,7 +609,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             display: block;
             margin-bottom: 0.3rem;
             color: #1d4d2d;
-            font-size: 0.8rem;
+            font-size: 11px;
             font-weight: 600;
         }
 
@@ -686,8 +618,8 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 100%;
             padding: 0.6rem 0.8rem;
             border: 1px solid #afcfaa;
-            border-radius: 4px;
-            font-size: 0.85rem;
+            border-radius: 2px;
+            font-size: 13px;
         }
 
         .filter-actions {
@@ -707,19 +639,19 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #fafff9;
             padding: 1rem;
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
             text-align: center;
         }
 
         .stat-card h3 {
             color: #1d4d2d;
-            font-size: 0.8rem;
+            font-size: 11px;
             margin-bottom: 0.3rem;
             text-transform: uppercase;
         }
 
         .stat-card .stat-value {
-            font-size: 1.6rem;
+            font-size: 20px;
             font-weight: 700;
             color: #0f4d1f;
         }
@@ -727,7 +659,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         /* Messages */
         .message {
             padding: 0.8rem 1rem;
-            border-radius: 4px;
+            border-radius: 2px;
             margin-bottom: 1.5rem;
             display: flex;
             align-items: center;
@@ -757,7 +689,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #fafff9;
             padding: 1rem;
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
             overflow-x: auto;
             margin-bottom: 1.5rem;
         }
@@ -766,7 +698,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 100%;
             border-collapse: collapse;
             min-width: 1200px;
-            font-size: 0.85rem;
+            font-size: 13px;
         }
 
         .admins-table th {
@@ -803,7 +735,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 0.8rem;
+            font-size: 11px;
             border-radius: 50%;
         }
 
@@ -814,19 +746,20 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         .admin-name {
             font-weight: 600;
             color: #1c4c29;
+            font-size: 13px;
         }
 
         .admin-email {
-            font-size: 0.7rem;
+            font-size: 11px;
             color: #6b7c6b;
         }
 
         .role-badge {
             display: inline-block;
             padding: 0.2rem 0.6rem;
-            font-size: 0.7rem;
+            font-size: 11px;
             font-weight: 600;
-            border-radius: 3px;
+            border-radius: 2px;
         }
 
         .role-badge.super_admin {
@@ -843,9 +776,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .badge {
             padding: 0.2rem 0.6rem;
-            font-size: 0.7rem;
+            font-size: 11px;
             font-weight: 600;
-            border-radius: 3px;
+            border-radius: 2px;
             display: inline-block;
         }
 
@@ -875,9 +808,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .action-btn {
             padding: 0.3rem 0.6rem;
-            font-size: 0.7rem;
+            font-size: 11px;
             border: 1px solid transparent;
-            border-radius: 3px;
+            border-radius: 2px;
             cursor: pointer;
             text-decoration: none;
             display: inline-flex;
@@ -946,7 +879,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 90%;
             margin: 1rem;
             border: 1px solid #cbe6bf;
-            border-radius: 6px;
+            border-radius: 5px;
             box-shadow: 0 10px 30px rgba(32, 72, 52, 0.3);
             max-height: 90vh;
             overflow-y: auto;
@@ -967,7 +900,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .modal-header h3 {
             color: #1c4c29;
-            font-size: 1.3rem;
+            font-size: 13px;
             font-weight: 600;
         }
 
@@ -1015,7 +948,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             display: block;
             margin-bottom: 0.3rem;
             color: #1d4d2d;
-            font-size: 0.85rem;
+            font-size: 11px;
             font-weight: 600;
         }
 
@@ -1024,8 +957,8 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 100%;
             padding: 0.6rem 0.8rem;
             border: 1px solid #afcfaa;
-            border-radius: 4px;
-            font-size: 0.85rem;
+            border-radius: 2px;
+            font-size: 13px;
         }
 
         .form-group input:focus,
@@ -1062,8 +995,8 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             color: #1b572b;
             background: #fafff9;
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
-            font-size: 0.85rem;
+            border-radius: 2px;
+            font-size: 13px;
             min-width: 32px;
             text-align: center;
         }
@@ -1082,7 +1015,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             text-align: center;
             margin-top: 0.5rem;
             color: #6b7c6b;
-            font-size: 0.8rem;
+            font-size: 11px;
         }
 
         /* Mobile menu button */
@@ -1103,7 +1036,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .note {
-            font-size: 0.8rem;
+            font-size: 11px;
             color: #6b7c6b;
             margin-top: 1rem;
             font-style: italic;
@@ -1167,7 +1100,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             }
             
             .page-header h1 {
-                font-size: 1.5rem;
+                font-size: 13px;
             }
             
             .stats-grid {
@@ -1238,7 +1171,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <li class="nav-item active">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Admin Management</span>
+                        <span>Staff Management</span>
                     </a>
                 </li>
             </ul>
@@ -1259,7 +1192,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     <main class="main-content <?php echo $sidebar_closed === 'true' ? 'expanded' : ''; ?>" id="mainContent">
         <div class="container">
             <div class="page-header">
-                <h1>Admin Management</h1>
+                <h1>Staff Management</h1>
                 <div class="header-actions">
                     <button class="btn btn-primary" onclick="openAddModal()">
                         <i class="fas fa-plus"></i> Add New Admin
@@ -1275,24 +1208,17 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
             <!-- Statistics -->
             <?php
-            $total_super_admins = 0;
-            $total_admins_count = 0;
-            $active_admins = 0;
-            $inactive_admins = 0;
+            $total_staff = 0;
+            $active_staff = 0;
+            $inactive_staff = 0;
             
             if (!empty($admins)) {
                 foreach ($admins as $admin) {
-                    if (isset($admin['role'])) {
-                        if ($admin['role'] == 'super_admin') {
-                            $total_super_admins++;
-                        } else {
-                            $total_admins_count++;
-                        }
-                    }
+                    $total_staff++;
                     if (isset($admin['is_active']) && $admin['is_active']) {
-                        $active_admins++;
+                        $active_staff++;
                     } else {
-                        $inactive_admins++;
+                        $inactive_staff++;
                     }
                 }
             }
@@ -1300,24 +1226,16 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
             <div class="stats-grid">
                 <div class="stat-card">
-                    <h3>Total Admins</h3>
-                    <div class="stat-value"><?php echo $total_admins_count + $total_super_admins; ?></div>
+                    <h3>Total Staff</h3>
+                    <div class="stat-value"><?php echo $total_staff; ?></div>
                 </div>
                 <div class="stat-card">
-                    <h3>Super Admins</h3>
-                    <div class="stat-value"><?php echo $total_super_admins; ?></div>
+                    <h3>Active Staff</h3>
+                    <div class="stat-value"><?php echo $active_staff; ?></div>
                 </div>
                 <div class="stat-card">
-                    <h3>Regular Admins</h3>
-                    <div class="stat-value"><?php echo $total_admins_count; ?></div>
-                </div>
-                <div class="stat-card">
-                    <h3>Active</h3>
-                    <div class="stat-value"><?php echo $active_admins; ?></div>
-                </div>
-                <div class="stat-card">
-                    <h3>Inactive</h3>
-                    <div class="stat-value"><?php echo $inactive_admins; ?></div>
+                    <h3>Inactive Staff</h3>
+                    <div class="stat-value"><?php echo $inactive_staff; ?></div>
                 </div>
             </div>
 
@@ -1345,14 +1263,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                value="<?php echo htmlspecialchars($search); ?>">
                     </div>
                     
-                    <div class="filter-group">
-                        <label>Role</label>
-                        <select name="role">
-                            <option value="all" <?php echo $role_filter == 'all' ? 'selected' : ''; ?>>All Roles</option>
-                            <option value="super_admin" <?php echo $role_filter == 'super_admin' ? 'selected' : ''; ?>>Super Admin</option>
-                            <option value="admin" <?php echo $role_filter == 'admin' ? 'selected' : ''; ?>>Admin</option>
-                        </select>
-                    </div>
+
 
                     <div class="filter-group">
                         <label>Status</label>
@@ -1379,7 +1290,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <table class="admins-table">
                     <thead>
                         <tr>
-                            <th>Admin</th>
+                            <th>Staff Member</th>
                             <th>Role</th>
                             <th>Permissions</th>
                             <th>Status</th>
@@ -1490,12 +1401,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                                 </button>
                                             </form>
                                             
-                                            <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this admin? This action cannot be undone.');">
-                                                <input type="hidden" name="admin_id" value="<?php echo $admin['admin_id'] ?? ''; ?>">
-                                                <button type="submit" name="delete_admin" class="action-btn action-btn-delete" title="Delete">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form>
+                                            <button type="button" class="action-btn action-btn-delete" title="Delete" onclick="confirmDelete(<?php echo $admin['admin_id']; ?>, '<?php echo htmlspecialchars($full_name); ?>')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -1545,7 +1453,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             <?php endif; ?>
             
             <div class="note">
-                <i class="fas fa-info-circle"></i> This page manages admin users only. For regular user management, go to <a href="users.php">Users</a>.
+                <i class="fas fa-info-circle"></i> This page manages administrative staff only. Super Admin accounts are managed separately for security. For regular user management, go to <a href="users.php">Users</a>.
             </div>
         </div>
     </main>
@@ -1581,12 +1489,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <input type="text" name="last_name" required>
                         </div>
                         <div class="form-group">
-                            <label>Role *</label>
-                            <select name="admin_role" required>
-                                <option value="">Select Role</option>
-                                <option value="admin">Admin</option>
-                                <option value="super_admin">Super Admin</option>
-                            </select>
+                            <label>Role</label>
+                            <input type="text" value="Staff Admin" disabled>
+                            <input type="hidden" name="admin_role" value="admin">
                         </div>
                         <div class="form-group full-width checkbox-group">
                             <input type="checkbox" name="is_active" id="is_active_add" checked>
@@ -1634,12 +1539,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <input type="text" name="last_name" id="edit_last_name" required>
                         </div>
                         <div class="form-group">
-                            <label>Role *</label>
-                            <select name="admin_role" id="edit_role" required>
-                                <option value="">Select Role</option>
-                                <option value="admin">Admin</option>
-                                <option value="super_admin">Super Admin</option>
-                            </select>
+                            <label>Role</label>
+                            <input type="text" value="Staff Admin" disabled>
+                            <input type="hidden" name="admin_role" value="admin">
                         </div>
                         <div class="form-group full-width checkbox-group">
                             <input type="checkbox" name="is_active" id="edit_is_active">
@@ -1650,6 +1552,27 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
                     <button type="submit" name="edit_admin" class="btn btn-success">Update Admin</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Confirm Deletion</h3>
+                <span class="close" onclick="closeDeleteModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="delete_admin_name"></strong>?</p>
+                <p style="font-size: 11px; color: #dc3545; margin-top: 0.5rem;"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="admin_id" id="delete_admin_id">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="submit" name="delete_admin" class="btn btn-danger">Confirm Delete</button>
                 </div>
             </form>
         </div>
@@ -1723,7 +1646,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                     document.getElementById('edit_email').value = data.email || '';
                     document.getElementById('edit_first_name').value = data.first_name || '';
                     document.getElementById('edit_last_name').value = data.last_name || '';
-                    document.getElementById('edit_role').value = data.role || '';
+                    // Role is fixed to staff admin for this page, so we don't need to set it
                     document.getElementById('edit_is_active').checked = data.is_active == 1;
                     
                     document.getElementById('editModal').style.display = 'flex';
@@ -1740,16 +1663,32 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             document.body.style.overflow = 'auto';
         }
 
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        function confirmDelete(adminId, adminName) {
+            document.getElementById('delete_admin_id').value = adminId;
+            document.getElementById('delete_admin_name').textContent = adminName;
+            document.getElementById('deleteModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
         // Close modals when clicking outside
         window.onclick = function(event) {
             const addModal = document.getElementById('addModal');
             const editModal = document.getElementById('editModal');
+            const deleteModal = document.getElementById('deleteModal');
             
             if (event.target == addModal) {
                 closeAddModal();
             }
             if (event.target == editModal) {
                 closeEditModal();
+            }
+            if (event.target == deleteModal) {
+                closeDeleteModal();
             }
         }
 
@@ -1758,6 +1697,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             if (event.key === 'Escape') {
                 closeAddModal();
                 closeEditModal();
+                closeDeleteModal();
                 
                 const sidebar = document.getElementById('sidebar');
                 if (sidebar.classList.contains('mobile-open')) {

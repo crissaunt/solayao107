@@ -3,14 +3,14 @@
 session_start();
 require_once __DIR__ . '/../php/db_connection.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+// Check if user is logged in and has admin/super admin role (1 or 2)
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true || !in_array($_SESSION['role_id'], [1, 2])) {
     header("Location: ../admin/login.php");
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
-$role_id = $_SESSION['role_id'] ?? 0;
+$role_id = $_SESSION['role_id'];
 $is_super_admin = ($role_id == 1);
 $is_admin = ($role_id <= 2); // Super Admin or Admin
 
@@ -68,7 +68,7 @@ try {
                         u.last_login,
                         u.role_id,
                         r.role_name,
-                        (SELECT COUNT(*) FROM activity_logs a WHERE a.performed_by = u.user_id) as total_activities
+                        (SELECT COUNT(*) FROM admin_activity_logs a WHERE a.admin_id = u.user_id) as total_activities
                     FROM users u
                     LEFT JOIN roles r ON u.role_id = r.role_id";
     
@@ -87,9 +87,9 @@ try {
     // Get activities from activity_logs (successful logins, page views, etc)
     $query1 = "SELECT 
                 a.created_at,
-                a.action,
+                a.action_type as action,
                 a.table_name,
-                a.record_id,
+                a.record_id::text,
                 a.ip_address::text as ip_address,
                 a.user_agent,
                 u.username,
@@ -97,8 +97,8 @@ try {
                 u.last_name,
                 NULL as description,
                 'activity_log' as source
-              FROM activity_logs a 
-              LEFT JOIN users u ON a.performed_by = u.user_id 
+              FROM admin_activity_logs a 
+              LEFT JOIN users u ON a.admin_id = u.user_id 
               WHERE a.created_at IS NOT NULL";
 
     // Get login attempts from login_attempts (failed logins)
@@ -106,7 +106,7 @@ try {
                 la.attempt_time as created_at,
                 CASE WHEN la.success THEN 'LOGIN_SUCCESS' ELSE 'LOGIN_FAILED' END as action,
                 'login_attempts' as table_name,
-                la.attempt_id as record_id,
+                la.attempt_id::text as record_id,
                 la.ip_address::text as ip_address,
                 NULL as user_agent,
                 la.username,
@@ -122,7 +122,7 @@ try {
                 prl.attempt_time as created_at,
                 'PASSWORD_RESET' as action,
                 'password_reset' as table_name,
-                prl.log_id as record_id,
+                prl.log_id::text as record_id,
                 prl.ip_address::text as ip_address,
                 prl.user_agent,
                 prl.email as username,
@@ -138,7 +138,7 @@ try {
                 sal.created_at,
                 sal.action,
                 sal.category as table_name,
-                sal.log_id as record_id,
+                sal.log_id::text as record_id,
                 sal.ip_address::text as ip_address,
                 sal.user_agent,
                 NULL as username,
@@ -158,27 +158,11 @@ try {
         $recent_activities[] = $row;
     }
 
-    // Log this page view
-    try {
-        $log_query = "INSERT INTO activity_logs (table_name, action, performed_by, ip_address, user_agent, created_at) 
-                     VALUES (:table_name, :action, :performed_by, :ip_address, :user_agent, NOW())";
-        $log_stmt = $conn->prepare($log_query);
-        $log_stmt->execute([
-            ':table_name' => 'dashboard',
-            ':action' => 'VIEW',
-            ':performed_by' => $user_id,
-            ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
-            ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
-        ]);
     } catch (PDOException $e) {
-        // Activity logs table might not exist, continue anyway
+        // Handle database errors gracefully
+        $error = "Database error: " . $e->getMessage();
+        error_log($error);
     }
-
-} catch (PDOException $e) {
-    // Handle database errors gracefully
-    $error = "Database error: " . $e->getMessage();
-    error_log($error);
-}
 
 // Get user initials for avatar
 $full_name = $_SESSION['full_name'] ?? 'Admin User';
@@ -195,8 +179,15 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Plants. System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/sidebar.css">
+    <link rel="stylesheet" href="../assets/css/admin_style.css">
     <style>
+        /* Specific page overrides if needed */
+        .dashboard-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
         /* Dashboard specific styles - optimized for size */
         .container {
             padding: 1.2rem 1.5rem;
@@ -206,23 +197,13 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         /* welcome section */
         .welcome-section {
-            background: linear-gradient(97deg, #d8efd0 0%, #f3fcf0 60%);
-            padding: 1.2rem 1.5rem;
-            margin-bottom: 1.5rem;
-            border: 1px solid #bdd8b3;
-            border-radius: 4px;
+            margin-bottom: 2rem;
+            padding: 2rem;
         }
 
         .welcome-section h1 {
             font-size: 24px;
-            font-weight: 700;
-            color: #1c4c29;
-            margin-bottom: 0.3rem;
-        }
-
-        .welcome-section p {
-            font-size: 16px;
-            color: #295f34;
+            margin-bottom: 0.5rem;
         }
 
         /* stats grid */
@@ -234,29 +215,18 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .stat-card {
-            background: #fafff9;
-            padding: 1.2rem;
-            box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
-            border: 1px solid #cbe6bf;
-            border-radius: 4px;
-            display: flex;
-            flex-direction: column;
+            padding: 1.5rem;
         }
 
         .stat-card h3 {
-            color: #1d4d2d;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 0.3rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-bottom: 0.8rem;
         }
 
         .stat-card .stat-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0f4d1f;
-            margin-bottom: 0.5rem;
+            font-size: 26px;
+            margin-bottom: 1rem;
         }
 
         .stat-card .stat-action {
@@ -276,7 +246,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             align-items: center;
             gap: 0.4rem;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         .stat-btn:hover {
@@ -306,7 +276,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             align-items: center;
             gap: 0.5rem;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         .action-btn:hover {
@@ -317,7 +287,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         /* section title */
         .section-title {
-            font-size: 20px;
+            font-size: 13px;
             font-weight: 600;
             color: #1c4927;
             margin-bottom: 1.2rem;
@@ -331,7 +301,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             padding: 1rem;
             box-shadow: 0 4px 12px rgba(40, 80, 30, 0.1);
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
             margin-bottom: 1.5rem;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -341,7 +311,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 100%;
             border-collapse: collapse;
             min-width: 800px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .activities-table th {
@@ -370,11 +340,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         /* badges */
         .badge {
             padding: 0.25rem 0.6rem;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             display: inline-block;
             border: 1px solid transparent;
-            border-radius: 3px;
+            border-radius: 2px;
         }
 
         .badge-success {
@@ -409,7 +379,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
         .text-muted {
             color: #6b7c6b;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         /* Modal Styles - optimized */
@@ -432,7 +402,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             max-width: 1100px;
             box-shadow: 0 15px 30px rgba(32, 72, 52, 0.25);
             border: 1px solid #cbe6bf;
-            border-radius: 6px;
+            border-radius: 5px;
             animation: modalSlideIn 0.3s ease;
         }
 
@@ -459,7 +429,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .modal-header h2 {
-            font-size: 24px;
+            font-size: 13px;
             font-weight: 600;
             display: flex;
             align-items: center;
@@ -467,17 +437,17 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .modal-header h2 i {
-            font-size: 24px;
+            font-size: 16px;
             color: #2b5e3c;
         }
 
         .modal-header h2 span {
             background: #fff;
             padding: 0.2rem 0.8rem;
-            font-size: 14px;
+            font-size: 11px;
             margin-left: 8px;
             border: 1px solid #a5cf9b;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         .modal-header .close {
@@ -503,7 +473,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             padding: 1rem 1.5rem;
             text-align: right;
             border-top: 1px solid #bdd8b3;
-            border-radius: 0 0 6px 6px;
+            border-radius: 0 0 5px 5px;
         }
 
         .modal-footer .btn-close {
@@ -511,11 +481,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             border: 1px solid #1c4c2a;
             color: #fff;
             padding: 0.5rem 1.5rem;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         .modal-footer .btn-close:hover {
@@ -536,9 +506,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             min-width: 200px;
             padding: 0.6rem 1rem;
             border: 1px solid #afcfaa;
-            font-size: 14px;
+            font-size: 13px;
             background: white;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         .modal-search input:focus {
@@ -549,10 +519,10 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         .modal-search select {
             padding: 0.6rem 1.2rem;
             border: 1px solid #afcfaa;
-            font-size: 14px;
+            font-size: 13px;
             background: white;
             color: #1e3a2f;
-            border-radius: 4px;
+            border-radius: 2px;
         }
 
         /* Modal Stats */
@@ -564,7 +534,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #f2f7f0;
             flex-wrap: wrap;
             border: 1px solid #cbe6bf;
-            border-radius: 4px;
+            border-radius: 5px;
         }
 
         .modal-stat-item {
@@ -574,14 +544,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .modal-stat-value {
-            font-size: 16px;
+            font-size: 13px;
             font-weight: 700;
             color: #0f4d1f;
         }
 
         .modal-stat-label {
             color: #1d4d2d;
-            font-size: 14px;
+            font-size: 11px;
         }
 
         /* Users Table in Modal */
@@ -589,7 +559,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             width: 100%;
             border-collapse: collapse;
             margin-top: 0.8rem;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .modal-users-table th {
@@ -622,7 +592,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 11px;
             border-radius: 50%;
         }
 
@@ -643,7 +613,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
 
         .user-email {
-            font-size: 12px;
+            font-size: 11px;
             color: #6b7c6b;
         }
 
@@ -651,10 +621,10 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             background: #e2e8f0;
             color: #4a5568;
             padding: 0.2rem 0.6rem;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             border: 1px solid #cbd5e0;
-            border-radius: 3px;
+            border-radius: 2px;
             white-space: nowrap;
         }
 
@@ -671,7 +641,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             margin-top: 1rem;
             text-align: center;
             color: #1d4d2d;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .export-btn {
@@ -685,8 +655,8 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             display: inline-flex;
             align-items: center;
             gap: 0.4rem;
-            border-radius: 4px;
-            font-size: 14px;
+            border-radius: 2px;
+            font-size: 13px;
         }
 
         .export-btn:hover {
@@ -840,7 +810,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <li class="nav-item ">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Admin Management</span>
+                        <span>Staff Management</span>
                     </a>
                 </li>
                 <?php endif; ?>
@@ -860,31 +830,31 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
     <!-- Main Content -->
     <main class="main-content <?php echo $sidebar_closed === 'true' ? 'expanded' : ''; ?>" id="mainContent">
-        <div class="container">
-            <div class="welcome-section">
-                <h1>Welcome back, <?php echo htmlspecialchars(explode(' ', $_SESSION['full_name'] ?? 'User')[0]); ?>!</h1>
+        <div class="dashboard-container">
+            <div class="welcome-section glass-card">
+                <h1>Welcome back, <?php echo htmlspecialchars(explode(' ', $_SESSION['full_name'] ?? 'User')[0]); ?>! 🪴</h1>
                 <p><?php echo date('l, F j, Y'); ?> • Here's what's happening with your system today.</p>
             </div>
             
             <div class="stats-grid">
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Total Regular Users</h3>
                     <div class="stat-value"><?php echo $stats['total_users'] ?? 0; ?></div>
                     <div class="stat-action">
-                        <button onclick="openUserModal()" class="stat-btn">
+                        <button onclick="openUserModal()" class="btn-modern btn-secondary">
                             <i class="fas fa-list"></i> View All
                         </button>
                     </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Active Today</h3>
                     <div class="stat-value"><?php echo $stats['active_today'] ?? 0; ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Failed Attempts</h3>
                     <div class="stat-value"><?php echo $stats['failed_today'] ?? 0; ?></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card glass-card">
                     <h3>Your Role</h3>
                     <div class="stat-value"><?php echo htmlspecialchars($_SESSION['role'] ?? 'User'); ?></div>
                 </div>
@@ -902,8 +872,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             
             <h2 class="section-title">Recent Activities</h2>
             
-            <div class="activities-table">
-                <table>
+            <div class="activities-table glass-card">
+                <div class="table-container">
+                    <table class="modern-table">
                     <thead>
                         <tr>
                             <th>Time</th>
