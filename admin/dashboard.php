@@ -99,7 +99,7 @@ try {
                 'activity_log' as source
               FROM admin_activity_logs a 
               LEFT JOIN users u ON a.admin_id = u.user_id 
-              WHERE a.created_at IS NOT NULL";
+              WHERE a.created_at IS NOT NULL AND a.action_type != 'TOGGLE_STATUS'";
 
     // Get login attempts from login_attempts (failed logins)
     $query2 = "SELECT 
@@ -131,7 +131,7 @@ try {
                 prl.details as description,
                 'password_reset' as source
               FROM password_reset_logs prl
-              WHERE prl.attempt_time IS NOT NULL";
+              WHERE prl.attempt_time IS NOT NULL AND prl.attempt_type = 'password_update' AND prl.success = true";
 
     // Get system activity logs for authentication events
     $query4 = "SELECT 
@@ -151,7 +151,7 @@ try {
 
     // Combine all queries with UNION and order by date
     $union_query = "($query1) UNION ALL ($query2) UNION ALL ($query3) UNION ALL ($query4) 
-                    ORDER BY created_at DESC LIMIT 50";
+                    ORDER BY created_at DESC LIMIT 7";
     
     $stmt = $conn->query($union_query);
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -791,6 +791,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         <span>Users</span>
                     </a>
                 </li>
+                <?php if ($is_super_admin || in_array('manage_questions', $_SESSION['permissions'] ?? []) || in_array('all', $_SESSION['permissions'] ?? [])): ?>
+                <li class="nav-item">
+                    <a href="security_questions.php">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Security Questions</span>
+                    </a>
+                </li>
+                <?php endif; ?>
                 <li class="nav-item">
                     <a href="logs.php">
                         <i class="fas fa-history"></i>
@@ -801,16 +809,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <?php if ($is_super_admin): ?>
                 <li class="nav-divider"></li>
                 <li class="nav-header">Administration</li>
-                <li class="nav-item">
-                    <a href="admin.php">
-                        <i class="fas fa-cog"></i>
-                        <span>Admin Panel</span>
-                    </a>
-                </li>
+
                 <li class="nav-item ">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Staff Management</span>
+                        <span>Admin Management</span>
                     </a>
                 </li>
                 <?php endif; ?>
@@ -850,10 +853,10 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                     <h3>Active Today</h3>
                     <div class="stat-value"><?php echo $stats['active_today'] ?? 0; ?></div>
                 </div>
-                <div class="stat-card glass-card">
+                <!-- <div class="stat-card glass-card">
                     <h3>Failed Attempts</h3>
                     <div class="stat-value"><?php echo $stats['failed_today'] ?? 0; ?></div>
-                </div>
+                </div> -->
                 <div class="stat-card glass-card">
                     <h3>Your Role</h3>
                     <div class="stat-value"><?php echo htmlspecialchars($_SESSION['role'] ?? 'User'); ?></div>
@@ -865,7 +868,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <a href="users.php" class="action-btn"><i class="fas fa-users"></i> Manage All Users</a>
                 <a href="logs.php" class="action-btn"><i class="fas fa-history"></i> View Activity Logs</a>
                 <?php if ($is_super_admin): ?>
-                <a href="admin.php" class="action-btn"><i class="fas fa-cog"></i> Admin Panel</a>
+                <a href="user_management.php" class="action-btn"><i class="fas fa-users-cog"></i> Admin Management</a>
                 <?php endif; ?>
             </div>
             <?php endif; ?>
@@ -909,17 +912,26 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                     <?php
                                     $action = $activity['action'] ?? 'UNKNOWN';
                                     $badge_class = 'badge-info';
+                                    $display_action = $action;
                                     
                                     if (strpos($action, 'LOGIN_SUCCESS') !== false || $action == 'LOGIN') {
                                         $badge_class = 'badge-success';
+                                        $display_action = 'LOGIN';
                                     } else if (strpos($action, 'LOGIN_FAILED') !== false) {
                                         $badge_class = 'badge-danger';
+                                        $display_action = 'LOGIN FAILED';
                                     } else if (strpos($action, 'LOGOUT') !== false) {
                                         $badge_class = 'badge-warning';
                                     } else if (strpos($action, 'PASSWORD_RESET') !== false) {
-                                        $badge_class = 'badge-warning';
+                                        $badge_class = 'badge-primary';
+                                        $display_action = 'PASSWORD CHANGE';
                                     } else if ($action == 'INSERT') {
-                                        $badge_class = 'badge-success';
+                                        if (($activity['table_name'] ?? '') == 'users') {
+                                            $badge_class = 'badge-success';
+                                            $display_action = 'REGISTER';
+                                        } else {
+                                            $badge_class = 'badge-success';
+                                        }
                                     } else if ($action == 'UPDATE') {
                                         $badge_class = 'badge-warning';
                                     } else if ($action == 'DELETE') {
@@ -929,7 +941,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                     }
                                     ?>
                                     <span class="badge <?php echo $badge_class; ?>">
-                                        <?php echo htmlspecialchars($action); ?>
+                                        <?php echo htmlspecialchars($display_action); ?>
                                     </span>
                                 </td>
                                 <td>
@@ -946,31 +958,36 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                     $description = $activity['description'] ?? '';
                                     
                                     if (!empty($description)) {
-                                        echo htmlspecialchars($description);
+                                        if ($action === 'PASSWORD_RESET') {
+                                            echo 'Password changed successfully';
+                                        } else {
+                                            echo htmlspecialchars($description);
+                                        }
                                     } elseif (strpos($action, 'LOGIN_SUCCESS') !== false) {
-                                        echo 'User logged in successfully';
+                                        echo 'User logged in to the system';
                                     } elseif (strpos($action, 'LOGIN_FAILED') !== false) {
-                                        echo 'Failed login attempt for user ' . ($activity['username'] ?? 'unknown');
+                                        echo 'Security warning: Failed login attempt';
                                     } elseif (strpos($action, 'LOGOUT') !== false) {
-                                        echo 'User logged out';
+                                        echo 'User session ended';
                                     } elseif (strpos($action, 'PASSWORD_RESET') !== false) {
-                                        echo 'Password reset attempt for ' . ($activity['username'] ?? 'unknown');
+                                        echo 'Account password has been changed';
                                     } elseif ($action == 'VIEW') {
-                                        echo 'Viewed ' . ($activity['table_name'] ?? 'dashboard');
+                                        echo 'Accessed ' . ($activity['table_name'] ?? 'dashboard');
                                     } elseif ($action == 'INSERT') {
-                                        echo 'Added new record' . ($activity['record_id'] ? ' (ID: ' . $activity['record_id'] . ')' : '');
+                                        if (($activity['table_name'] ?? '') == 'users') {
+                                            echo 'New account registered';
+                                        } else {
+                                            echo 'Added new record';
+                                        }
                                     } elseif ($action == 'UPDATE') {
-                                        echo 'Updated record' . ($activity['record_id'] ? ' (ID: ' . $activity['record_id'] . ')' : '');
+                                        echo 'Updated record details';
                                     } elseif ($action == 'DELETE') {
-                                        echo 'Deleted record' . ($activity['record_id'] ? ' (ID: ' . $activity['record_id'] . ')' : '');
+                                        echo 'Removed record from the system';
                                     } else {
-                                        echo 'Action performed';
+                                        echo 'Action completed';
                                     }
                                     ?>
                                     
-                                    <?php if (!empty($activity['ip_address']) && $activity['ip_address'] != '::1'): ?>
-                                    <br><small class="text-muted">IP: <?php echo htmlspecialchars($activity['ip_address']); ?></small>
-                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <?php endforeach; ?>

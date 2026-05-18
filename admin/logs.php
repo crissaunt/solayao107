@@ -28,13 +28,16 @@ $offset = ($page - 1) * $limit;
 // Filter
 $filter_action = isset($_GET['action']) ? $_GET['action'] : '';
 $filter_user = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+$filter_role = isset($_GET['role_id']) ? (int)$_GET['role_id'] : 0;
+$filter_date_from = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$filter_date_to = isset($_GET['date_to']) ? $_GET['date_to'] : '';
 
 try {
     // Build UNION query to get logs from all tables
     $base_queries = [];
     $count_queries = [];
     $params = [];
-    $param_counter = 0;
+    $param_counter = 1;
 
     // 1. Activity logs table
     $q1 = "SELECT 
@@ -51,11 +54,13 @@ try {
             a.new_data,
             NULL as description,
             'activity_log' as source,
-            a.admin_id as user_id
+            a.admin_id as user_id,
+            r.role_name,
+            r.role_id
           FROM admin_activity_logs a 
           LEFT JOIN users u ON a.admin_id = u.user_id 
-          WHERE 1=1";
-        // WHERE (u.role_id IS NULL OR u.role_id > 1)";
+          LEFT JOIN roles r ON u.role_id = r.role_id
+          WHERE a.action_type != 'TOGGLE_STATUS'";
 
     // 2. Login attempts table
     $q2 = "SELECT 
@@ -65,15 +70,19 @@ try {
             la.attempt_id::text as record_id,
             la.ip_address::text as ip_address,
             NULL as user_agent,
-            la.username,
-            NULL as first_name,
-            NULL as last_name,
+            COALESCE(u.username, la.username) as username,
+            u.first_name,
+            u.last_name,
             NULL as old_data,
             NULL as new_data,
             CASE WHEN la.success THEN 'Successful login' ELSE 'Failed login attempt' END as description,
             'login_attempt' as source,
-            la.user_id
+            la.user_id,
+            r.role_name,
+            r.role_id
           FROM login_attempts la
+          LEFT JOIN users u ON la.user_id = u.user_id
+          LEFT JOIN roles r ON u.role_id = r.role_id
           WHERE 1=1";
 
     // 3. Password reset logs
@@ -84,35 +93,66 @@ try {
             prl.log_id::text as record_id,
             prl.ip_address::text as ip_address,
             prl.user_agent,
-            prl.email as username,
-            NULL as first_name,
-            NULL as last_name,
+            COALESCE(u.username, prl.email) as username,
+            u.first_name,
+            u.last_name,
             NULL as old_data,
             NULL as new_data,
             prl.details as description,
             'password_reset' as source,
-            prl.user_id
+            prl.user_id,
+            r.role_name,
+            r.role_id
           FROM password_reset_logs prl
-          WHERE 1=1";
+          LEFT JOIN users u ON prl.user_id = u.user_id
+          LEFT JOIN roles r ON u.role_id = r.role_id
+          WHERE prl.attempt_type = 'password_update' AND prl.success = true";
 
     // 4. System activity logs (authentication events)
     $q4 = "SELECT 
             sal.created_at,
             sal.action,
             sal.category as table_name,
-            sal.log_id::text as record_id,
+            sal.record_identifier as record_id,
             sal.ip_address::text as ip_address,
             sal.user_agent,
-            NULL as username,
-            NULL as first_name,
-            NULL as last_name,
+            u.username,
+            u.first_name,
+            u.last_name,
             NULL as old_data,
             NULL as new_data,
             sal.description,
             'system_log' as source,
-            sal.user_id
+            sal.user_id,
+            r.role_name,
+            r.role_id
           FROM system_activity_logs sal
+          LEFT JOIN users u ON sal.user_id = u.user_id
+          LEFT JOIN roles r ON u.role_id = r.role_id
           WHERE sal.category = 'authentication'";
+
+    // 5. User activity logs
+    $q5 = "SELECT 
+            al.created_at,
+            al.action,
+            al.table_name,
+            al.record_id::text as record_id,
+            al.ip_address::text as ip_address,
+            al.user_agent,
+            u.username,
+            u.first_name,
+            u.last_name,
+            al.old_data,
+            al.new_data,
+            NULL as description,
+            'user_activity_log' as source,
+            al.performed_by as user_id,
+            r.role_name,
+            r.role_id
+          FROM activity_logs al
+          LEFT JOIN users u ON al.performed_by = u.user_id
+          LEFT JOIN roles r ON u.role_id = r.role_id
+          WHERE al.action != 'TOGGLE_STATUS'";
 
     // Apply filters to each query
     $filter_conditions = [];
@@ -120,32 +160,48 @@ try {
     if ($filter_action) {
         $filter_conditions[] = " action = :action" . $param_counter;
         $params[':action' . $param_counter] = $filter_action;
+        $param_counter++;
     }
     
     if ($filter_user > 0) {
         $filter_conditions[] = " user_id = :user_id" . $param_counter;
         $params[':user_id' . $param_counter] = $filter_user;
+        $param_counter++;
+    }
+    
+    if ($filter_role > 0) {
+        $filter_conditions[] = " role_id = :role_id" . $param_counter;
+        $params[':role_id' . $param_counter] = $filter_role;
+        $param_counter++;
+    }
+    
+    if ($filter_date_from) {
+        $filter_conditions[] = " created_at >= :date_from" . $param_counter;
+        $params[':date_from' . $param_counter] = $filter_date_from . ' 00:00:00';
+        $param_counter++;
+    }
+    
+    if ($filter_date_to) {
+        $filter_conditions[] = " created_at <= :date_to" . $param_counter;
+        $params[':date_to' . $param_counter] = $filter_date_to . ' 23:59:59';
+        $param_counter++;
     }
     
     $filter_sql = '';
     if (!empty($filter_conditions)) {
-        $filter_sql = ' AND (' . implode(' AND ', $filter_conditions) . ')';
+        $filter_sql = ' WHERE ' . implode(' AND ', $filter_conditions);
     }
     
-    // Apply filters to all queries
-    $q1 .= $filter_sql;
-    $q2 .= $filter_sql;
-    $q3 .= $filter_sql;
-    $q4 .= $filter_sql;
-    
     // Combine all queries for data
-    $union_query = "($q1) UNION ALL ($q2) UNION ALL ($q3) UNION ALL ($q4) 
+    $union_query = "SELECT * FROM (
+                        ($q1) UNION ALL ($q2) UNION ALL ($q3) UNION ALL ($q4) UNION ALL ($q5)
+                    ) as combined $filter_sql 
                     ORDER BY created_at DESC LIMIT :limit OFFSET :offset";
     
     // Count query (need to count from all tables)
     $count_query = "SELECT COUNT(*) as total FROM (
-                        ($q1) UNION ALL ($q2) UNION ALL ($q3) UNION ALL ($q4)
-                    ) as combined";
+                        ($q1) UNION ALL ($q2) UNION ALL ($q3) UNION ALL ($q4) UNION ALL ($q5)
+                    ) as combined $filter_sql";
     
     // Get total records for pagination
     $count_stmt = $conn->prepare($count_query);
@@ -170,6 +226,10 @@ try {
     // Get users for filter dropdown
     $users_stmt = $conn->query("SELECT user_id, username, first_name, last_name FROM users WHERE is_active = true ORDER BY username");
     $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Get roles for filter dropdown
+    $roles_stmt = $conn->query("SELECT role_id, role_name FROM roles WHERE is_active = true ORDER BY role_name");
+    $log_roles = $roles_stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Get unique actions for filter dropdown
     $actions_query = "SELECT DISTINCT action FROM (
@@ -180,6 +240,8 @@ try {
                         SELECT 'PASSWORD_RESET' as action FROM password_reset_logs
                         UNION
                         SELECT action FROM system_activity_logs WHERE category = 'authentication'
+                        UNION
+                        SELECT action FROM activity_logs WHERE action != 'TOGGLE_STATUS'
                       ) as actions ORDER BY action";
     $actions_stmt = $conn->query($actions_query);
     $available_actions = $actions_stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -242,6 +304,216 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             white-space: nowrap;
             margin-top: 0.2rem;
             border-radius: 3px;
+        }
+
+        .formatted-data {
+            background: #f8f9fa;
+            padding: 0.5rem;
+            border: 1px solid #d8e8d0;
+            font-size: 12px;
+            margin-top: 0.4rem;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            max-width: 320px;
+        }
+        .formatted-data-row {
+            margin-bottom: 0.25rem;
+            word-break: break-word;
+        }
+        .formatted-data-key {
+            font-weight: 600;
+            color: #2a6e3b;
+        }
+        .formatted-data-val {
+            color: #4a5568;
+            font-family: monospace;
+        }
+
+        /* Log Details Modal - Premium UI/UX */
+        .log-modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 32, 10, 0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            animation: modalBlurIn 0.4s ease;
+        }
+
+        @keyframes modalBlurIn {
+            from { background-color: rgba(0,0,0,0); backdrop-filter: blur(0px); }
+            to { background-color: rgba(0, 32, 10, 0.4); backdrop-filter: blur(10px); }
+        }
+
+        .log-modal-content {
+            background: #ffffff;
+            margin: 1.5% auto;
+            width: 95%;
+            max-width: 1100px;
+            box-shadow: 0 40px 80px -15px rgba(0, 40, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 16px;
+            overflow: hidden;
+            max-height: 94vh;
+            display: flex;
+            flex-direction: column;
+            animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes modalSlideUp {
+            from { opacity: 0; transform: translateY(40px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .log-modal-header {
+            padding: 1.4rem 2.8rem;
+            color: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        
+        .log-modal-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .log-modal-header h2 {
+            font-size: 1.1rem;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .log-close {
+            font-size: 1.4rem;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(0, 0, 0,1);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .log-close:hover {
+            background: rgba(8, 8, 8, 0.25);
+            transform: rotate(90deg) scale(1.1);
+        }
+
+        .log-modal-body {
+            padding: 2.8rem;
+            overflow-y: auto;
+            background: #ffffff;
+            scrollbar-width: thin;
+            scrollbar-color: #d1e4cb transparent;
+        }
+
+        .detailed-log-view {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        .log-detail-section {
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #f0f4ef;
+        }
+        
+        .log-detail-section:last-child {
+            border-bottom: none;
+        }
+
+        .log-section-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #589065;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        .log-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem 1.5rem;
+        }
+
+        .log-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 4px;
+        }
+
+        .log-field-label {
+            font-size: 0.65rem;
+            color: #8c9c8c;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .log-field-value {
+            font-size: 0.9rem;
+            color: #1a2a1f;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 1100px) {
+            .log-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 850px) {
+            .log-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 550px) {
+            .log-grid { grid-template-columns: 1fr; }
+            .log-modal-body { padding: 1.5rem; }
+            .log-modal-header { padding: 1.2rem 1.8rem; }
+        }
+        
+        .btn-view {
+            background: #e9ecef;
+            color: #495057;
+            border: 1px solid #ced4da;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+            margin-top: 5px;
+        }
+        .btn-view:hover {
+            background: #dde0e3;
+            color: #212529;
+        }
+
+        .log-modal .formatted-data {
+            max-width: 100%;
+            max-height: 400px;
         }
 
         .user-info-cell {
@@ -340,6 +612,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         <span>Users</span>
                     </a>
                 </li>
+                <?php if ($is_super_admin || in_array('manage_questions', $_SESSION['permissions'] ?? []) || in_array('all', $_SESSION['permissions'] ?? [])): ?>
+                <li class="nav-item">
+                    <a href="security_questions.php">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Security Questions</span>
+                    </a>
+                </li>
+                <?php endif; ?>
                 <li class="nav-item active">
                     <a href="logs.php">
                         <i class="fas fa-history"></i>
@@ -350,16 +630,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <?php if ($is_super_admin): ?>
                 <li class="nav-divider"></li>
                 <li class="nav-header">Administration</li>
-                <li class="nav-item">
-                    <a href="admin.php">
-                        <i class="fas fa-cog"></i>
-                        <span>Admin Panel</span>
-                    </a>
-                </li>
+
                 <li class="nav-item ">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Staff Management</span>
+                        <span>Admin Management</span>
                     </a>
                 </li>
                 <?php endif; ?>
@@ -384,6 +659,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <h1>Activity Logs 📜</h1>
                 <p>Track system changes and monitor administrative actions.</p>
             </div>
+            
+            <?php if (isset($error)): ?>
+            <div class="alert alert-danger glass-card" style="background: rgba(254, 215, 215, 0.9); color: #c53030; border-left: 5px solid #c53030; padding: 1rem; margin-bottom: 2rem;">
+                <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+            </div>
+            <?php endif; ?>
             
             <div class="stats-grid">
                 <div class="stat-card glass-card">
@@ -410,13 +691,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         <label for="action">Action Type</label>
                         <select name="action" id="action">
                             <option value="">All Actions</option>
-                            <option value="INSERT" <?php echo $filter_action == 'INSERT' ? 'selected' : ''; ?>>INSERT</option>
+                            <option value="INSERT" <?php echo $filter_action == 'INSERT' ? 'selected' : ''; ?>>INSERT / REGISTER</option>
                             <option value="UPDATE" <?php echo $filter_action == 'UPDATE' ? 'selected' : ''; ?>>UPDATE</option>
                             <option value="DELETE" <?php echo $filter_action == 'DELETE' ? 'selected' : ''; ?>>DELETE</option>
-                            <option value="LOGIN" <?php echo $filter_action == 'LOGIN' ? 'selected' : ''; ?>>LOGIN</option>
-                            <option value="LOGIN_SUCCESS" <?php echo $filter_action == 'LOGIN_SUCCESS' ? 'selected' : ''; ?>>LOGIN SUCCESS</option>
+                            <option value="LOGIN_SUCCESS" <?php echo $filter_action == 'LOGIN_SUCCESS' ? 'selected' : ''; ?>>LOGIN</option>
                             <option value="LOGIN_FAILED" <?php echo $filter_action == 'LOGIN_FAILED' ? 'selected' : ''; ?>>LOGIN FAILED</option>
-                            <option value="PASSWORD_RESET" <?php echo $filter_action == 'PASSWORD_RESET' ? 'selected' : ''; ?>>PASSWORD RESET</option>
+                            <option value="PASSWORD_RESET" <?php echo $filter_action == 'PASSWORD_RESET' ? 'selected' : ''; ?>>PASSWORD CHANGE</option>
                         </select>
                     </div>
                     
@@ -430,6 +710,28 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="role_id">Performer Role</label>
+                        <select name="role_id" id="role_id">
+                            <option value="">All Roles</option>
+                            <?php foreach ($log_roles as $role): ?>
+                            <option value="<?php echo $role['role_id']; ?>" <?php echo $filter_role == $role['role_id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($role['role_name']); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="date_from">Date From</label>
+                        <input type="date" name="date_from" id="date_from" value="<?php echo htmlspecialchars($filter_date_from); ?>">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="date_to">Date To</label>
+                        <input type="date" name="date_to" id="date_to" value="<?php echo htmlspecialchars($filter_date_to); ?>">
                     </div>
                     
                     <div class="filter-actions">
@@ -450,15 +752,129 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         <tr>
                             <th>Timestamp</th>
                             <th>User</th>
+                            <th>Role</th>
                             <th>Action</th>
                             <th>Source</th>
-                            <th>Table</th>
                             <th>Record ID</th>
                             <th>Details</th>
-                            <th>IP Address</th>
                         </tr>
                     </thead>
                     <tbody>
+                        <?php 
+                        if (!function_exists('formatLogData')) {
+                            function formatLogData($data, $label = '', $conn = null, $recordId = null) {
+                                if (empty($data)) return '';
+                                $arr = is_string($data) ? json_decode($data, true) : $data;
+                                if (!is_array($arr)) {
+                                    $str = htmlspecialchars(is_string($data) ? $data : json_encode($data));
+                                    return '<div class="json-data">' . ($label ? '<b>' . $label . ':</b> ' : '') . $str . '</div>';
+                                }
+
+                                // If this looks like user data, format it in sections
+                                $user_fields = ['id_number', 'username', 'email', 'first_name', 'last_name', 'street_purok'];
+                                $is_user_data = false;
+                                foreach ($user_fields as $f) {
+                                    if (isset($arr[$f]) || isset($arr['fname']) || isset($arr['lname'])) $is_user_data = true;
+                                }
+
+                                if ($is_user_data) {
+                                    $html = '<div class="detailed-log-view">';
+                                    
+                                    if ($label) $html .= '<h3 class="log-detail-main-label">' . htmlspecialchars($label) . '</h3>';
+
+                                    // 1. Account Information
+                                    $html .= '<div class="log-detail-section">';
+                                    $html .= '<h4 class="log-section-title"><i class="fas fa-user-circle"></i> Account Information</h4>';
+                                    $html .= '<div class="log-grid">';
+                                    $html .= renderLogField('ID Number', $arr['id_number'] ?? $arr['id_number'] ?? 'Not provided');
+                                    $html .= renderLogField('Username', $arr['username'] ?? 'Not provided');
+                                    $html .= renderLogField('Email', $arr['email'] ?? 'Not provided');
+                                    $html .= renderLogField('Contact Number', $arr['contact_number'] ?? 'Not provided');
+                                    $html .= '</div></div>';
+
+                                    // 2. Personal Information
+                                    $html .= '<div class="log-detail-section">';
+                                    $html .= '<h4 class="log-section-title"><i class="fas fa-id-card"></i> Personal Information</h4>';
+                                    $html .= '<div class="log-grid">';
+                                    $html .= renderLogField('First Name', $arr['first_name'] ?? $arr['first_name'] ?? 'Not provided');
+                                    $html .= renderLogField('Middle Name', $arr['middle_name'] ?? $arr['middle_name'] ?? 'None');
+                                    $html .= renderLogField('Last Name', $arr['last_name'] ?? $arr['last_name'] ?? 'Not provided');
+                                    $html .= renderLogField('Extension Name', $arr['extension_name'] ?? $arr['extend_name'] ?? 'None');
+                                    
+                                    $bday = $arr['birthday'] ?? '';
+                                    $html .= renderLogField('Birthday', $bday ? date('d/m/Y', strtotime($bday)) : 'Not provided');
+                                    
+                                    $age = $arr['age'] ?? '';
+                                    if (!$age && $bday) {
+                                        $birthDate = new DateTime($bday);
+                                        $today = new DateTime();
+                                        $age = $today->diff($birthDate)->y;
+                                    }
+                                    $html .= renderLogField('Age', $age ? $age . ' years old' : 'Not provided');
+                                    $html .= renderLogField('Sex', ucwords($arr['sex'] ?? 'Not specified'));
+                                    $html .= '</div></div>';
+
+                                    // 3. Address Information
+                                    $html .= '<div class="log-detail-section">';
+                                    $html .= '<h4 class="log-section-title"><i class="fas fa-map-marker-alt"></i> Personal Address</h4>';
+                                    $html .= '<div class="log-grid">';
+                                    $html .= renderLogField('Purok/Street', $arr['street_purok'] ?? 'Not provided');
+                                    $html .= renderLogField('Barangay', $arr['barangay'] ?? 'Not provided');
+                                    $html .= renderLogField('City/Municipal', $arr['city_municipal'] ?? 'Not provided');
+                                    $html .= renderLogField('Province', $arr['province'] ?? 'Not provided');
+                                    $html .= renderLogField('Country', $arr['country'] ?? 'Not provided');
+                                    $html .= renderLogField('Zip Code', $arr['zipcode'] ?? $arr['zip_code'] ?? 'Not provided');
+                                    $html .= '</div></div>';
+
+                                    // 4. Security Questions (Fetch if conn and recordId provided)
+                                    if ($conn && $recordId) {
+                                        try {
+                                            $q_stmt = $conn->prepare("
+                                                SELECT q.question_text 
+                                                FROM user_security_answers a
+                                                JOIN security_questions q ON a.question_id = q.question_id
+                                                WHERE a.user_id = :uid
+                                            ");
+                                            $q_stmt->execute([':uid' => $recordId]);
+                                            $questions = $q_stmt->fetchAll(PDO::FETCH_COLUMN);
+
+                                            if (!empty($questions)) {
+                                                $html .= '<div class="log-detail-section">';
+                                                $html .= '<h4 class="log-section-title"><i class="fas fa-shield-alt"></i> Security Questions</h4>';
+                                                $html .= '<div class="log-grid">';
+                                                foreach ($questions as $i => $q) {
+                                                    $html .= renderLogField('Question ' . ($i+1), $q);
+                                                }
+                                                $html .= '</div></div>';
+                                            }
+                                        } catch (Exception $e) {}
+                                    }
+
+                                    $html .= '</div>';
+                                    return $html;
+                                }
+                                
+                                // Default formatting for non-user data
+                                $html = '<div class="formatted-data">';
+                                if ($label) $html .= '<div style="font-weight:bold; margin-bottom:10px; padding-bottom:4px; border-bottom:1px solid #d8e8d0; color:#1c4c29;">' . htmlspecialchars($label) . '</div>';
+                                foreach ($arr as $key => $val) {
+                                    if ($key === 'password' || $key === 'password_hash') continue; // Hide passwords
+                                    $keyStr = htmlspecialchars(ucwords(str_replace('_', ' ', $key)));
+                                    $valStr = htmlspecialchars(is_array($val) ? json_encode($val) : (string)$val);
+                                    $html .= '<div class="formatted-data-row"><span class="formatted-data-key">' . $keyStr . ':</span> <span class="formatted-data-val">' . $valStr . '</span></div>';
+                                }
+                                $html .= '</div>';
+                                return $html;
+                            }
+
+                            function renderLogField($label, $value) {
+                                return '<div class="log-field">
+                                            <span class="log-field-label">' . htmlspecialchars($label) . ':</span>
+                                            <span class="log-field-value">' . htmlspecialchars($value) . '</span>
+                                        </div>';
+                            }
+                        }
+                        ?>
                         <?php if (!empty($logs)): ?>
                             <?php foreach ($logs as $log): ?>
                             <tr>
@@ -488,20 +904,36 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                     </div>
                                 </td>
                                 <td>
+                                    <?php if (!empty($log['role_name'])): ?>
+                                        <span class="role-badge" style="font-size: 0.7rem;"><?php echo htmlspecialchars($log['role_name']); ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted" style="font-size: 0.7rem; font-style: italic;">System</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
                                     <?php
                                     $badge_class = 'badge-info';
                                     $action = $log['action'] ?? 'UNKNOWN';
+                                    $display_action = $action;
                                     
                                     if (strpos($action, 'LOGIN_SUCCESS') !== false) {
                                         $badge_class = 'badge-success';
+                                        $display_action = 'LOGIN';
                                     } else if (strpos($action, 'LOGIN_FAILED') !== false) {
                                         $badge_class = 'badge-danger';
+                                        $display_action = 'LOGIN FAILED';
                                     } else if (strpos($action, 'LOGOUT') !== false) {
                                         $badge_class = 'badge-warning';
                                     } else if (strpos($action, 'PASSWORD_RESET') !== false) {
-                                        $badge_class = 'badge-warning';
+                                        $badge_class = 'badge-primary';
+                                        $display_action = 'PASSWORD CHANGE';
                                     } else if ($action == 'INSERT') {
-                                        $badge_class = 'badge-success';
+                                        if (($log['table_name'] ?? '') == 'users') {
+                                            $badge_class = 'badge-success';
+                                            $display_action = 'REGISTER';
+                                        } else {
+                                            $badge_class = 'badge-success';
+                                        }
                                     } else if ($action == 'UPDATE') {
                                         $badge_class = 'badge-warning';
                                     } else if ($action == 'DELETE') {
@@ -510,10 +942,13 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                         $badge_class = 'badge-info';
                                     } else if ($action == 'LOGIN') {
                                         $badge_class = 'badge-info';
+                                    } else if ($action == 'TOGGLE_STATUS') {
+                                        $badge_class = 'badge-info';
+                                        $display_action = 'STATUS TOGGLE';
                                     }
                                     ?>
                                     <span class="badge <?php echo $badge_class; ?>">
-                                        <?php echo htmlspecialchars($action); ?>
+                                        <?php echo htmlspecialchars($display_action); ?>
                                     </span>
                                 </td>
                                 <td>
@@ -524,7 +959,6 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                         ?>
                                     </span>
                                 </td>
-                                <td><?php echo htmlspecialchars($log['table_name'] ?? 'N/A'); ?></td>
                                 <td><?php echo $log['record_id'] ?? '-'; ?></td>
                                 <td>
                                     <?php 
@@ -532,44 +966,51 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                     $description = $log['description'] ?? '';
                                     
                                     if (!empty($description)) {
-                                        echo htmlspecialchars($description);
+                                        if ($action === 'PASSWORD_RESET') {
+                                            echo 'Password changed successfully';
+                                        } else {
+                                            echo htmlspecialchars($description);
+                                        }
                                     } elseif (strpos($action, 'LOGIN_SUCCESS') !== false) {
-                                        echo 'User logged in successfully';
+                                        echo 'User logged in to the system';
                                     } elseif (strpos($action, 'LOGIN_FAILED') !== false) {
-                                        echo 'Failed login attempt';
+                                        echo 'Security warning: Failed login attempt';
                                     } elseif (strpos($action, 'LOGOUT') !== false) {
-                                        echo 'User logged out';
+                                        echo 'User session ended';
                                     } elseif (strpos($action, 'PASSWORD_RESET') !== false) {
-                                        echo 'Password reset attempt';
+                                        echo 'Account password has been changed';
                                     } elseif ($action == 'VIEW') {
-                                        echo 'Viewed ' . ($log['table_name'] ?? 'page');
+                                        echo 'Accessed ' . ($log['table_name'] ?? 'page');
                                     } elseif ($action == 'INSERT') {
-                                        echo 'Added new record';
+                                        if (($log['table_name'] ?? '') == 'users') {
+                                            echo 'New account registered';
+                                        } else {
+                                            echo 'Added new record';
+                                        }
                                         if (!empty($log['new_data'])) {
-                                            echo '<div class="json-data">' . htmlspecialchars(is_string($log['new_data']) ? $log['new_data'] : json_encode($log['new_data'])) . '</div>';
+                                            $uniqueId = 'log_' . uniqid();
+                                            echo '<br><button class="btn-view" onclick="viewLogDetails(\''.$uniqueId.'\')"><i class="fas fa-eye"></i> View Details</button>';
+                                            echo '<div id="'.$uniqueId.'" style="display:none;">' . formatLogData($log['new_data'], '', $conn, $log['record_id']) . '</div>';
                                         }
-                                    } elseif ($action == 'UPDATE') {
-                                        echo 'Updated record';
+                                    } elseif ($display_action == 'UPDATE') {
+                                        echo 'Updated record details';
                                         if (!empty($log['old_data']) || !empty($log['new_data'])) {
-                                            echo '<div class="json-data">Old: ' . htmlspecialchars(is_string($log['old_data']) ? $log['old_data'] : json_encode($log['old_data'])) . '</div>';
-                                            echo '<div class="json-data">New: ' . htmlspecialchars(is_string($log['new_data']) ? $log['new_data'] : json_encode($log['new_data'])) . '</div>';
+                                            $uniqueId = 'log_' . uniqid();
+                                            echo '<br><button class="btn-view" onclick="viewLogDetails(\''.$uniqueId.'\')"><i class="fas fa-eye"></i> View Details</button>';
+                                            echo '<div id="'.$uniqueId.'" style="display:none;">';
+                                            if (!empty($log['old_data'])) echo formatLogData($log['old_data'], 'Old Data', $conn, $log['record_id']);
+                                            if (!empty($log['new_data'])) echo formatLogData($log['new_data'], 'New Data', $conn, $log['record_id']);
+                                            echo '</div>';
                                         }
-                                    } elseif ($action == 'DELETE') {
-                                        echo 'Deleted record';
+                                    } elseif ($display_action == 'DELETE') {
+                                        echo 'Removed record from the system';
                                         if (!empty($log['old_data'])) {
-                                            echo '<div class="json-data">' . htmlspecialchars(is_string($log['old_data']) ? $log['old_data'] : json_encode($log['old_data'])) . '</div>';
+                                            $uniqueId = 'log_' . uniqid();
+                                            echo '<br><button class="btn-view" onclick="viewLogDetails(\''.$uniqueId.'\')"><i class="fas fa-eye"></i> View Details</button>';
+                                            echo '<div id="'.$uniqueId.'" style="display:none;">' . formatLogData($log['old_data'], 'Deleted Data', $conn, $log['record_id']) . '</div>';
                                         }
                                     } else {
-                                        echo 'Action performed';
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    $ip = $log['ip_address'] ?? '-';
-                                    echo htmlspecialchars($ip);
-                                    if ($ip != '-' && $ip != '::1') {
-                                        echo '<br><span class="text-muted">' . (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? 'IPv6' : 'IPv4') . '</span>';
+                                        echo 'Action completed';
                                     }
                                     ?>
                                 </td>
@@ -591,10 +1032,10 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             <?php if (($total_pages ?? 1) > 1): ?>
             <div class="pagination">
                 <?php if ($page > 1): ?>
-                <a href="?page=1<?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?>">
+                <a href="?page=1<?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?><?php echo $filter_role ? '&role_id='.$filter_role : ''; ?><?php echo $filter_date_from ? '&date_from='.$filter_date_from : ''; ?><?php echo $filter_date_to ? '&date_to='.$filter_date_to : ''; ?>">
                     <i class="fas fa-angle-double-left"></i>
                 </a>
-                <a href="?page=<?php echo $page-1; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?>">
+                <a href="?page=<?php echo $page-1; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?><?php echo $filter_role ? '&role_id='.$filter_role : ''; ?><?php echo $filter_date_from ? '&date_from='.$filter_date_from : ''; ?><?php echo $filter_date_to ? '&date_to='.$filter_date_to : ''; ?>">
                     <i class="fas fa-chevron-left"></i>
                 </a>
                 <?php endif; ?>
@@ -607,15 +1048,15 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                     <?php if ($i == $page): ?>
                     <span class="active"><?php echo $i; ?></span>
                     <?php else: ?>
-                    <a href="?page=<?php echo $i; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?>"><?php echo $i; ?></a>
+                    <a href="?page=<?php echo $i; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?><?php echo $filter_role ? '&role_id='.$filter_role : ''; ?><?php echo $filter_date_from ? '&date_from='.$filter_date_from : ''; ?><?php echo $filter_date_to ? '&date_to='.$filter_date_to : ''; ?>"><?php echo $i; ?></a>
                     <?php endif; ?>
                 <?php endfor; ?>
                 
                 <?php if ($page < $total_pages): ?>
-                <a href="?page=<?php echo $page+1; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?>">
+                <a href="?page=<?php echo $page+1; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?><?php echo $filter_role ? '&role_id='.$filter_role : ''; ?><?php echo $filter_date_from ? '&date_from='.$filter_date_from : ''; ?><?php echo $filter_date_to ? '&date_to='.$filter_date_to : ''; ?>">
                     <i class="fas fa-chevron-right"></i>
                 </a>
-                <a href="?page=<?php echo $total_pages; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?>">
+                <a href="?page=<?php echo $total_pages; ?><?php echo $filter_action ? '&action='.urlencode($filter_action) : ''; ?><?php echo $filter_user ? '&user_id='.$filter_user : ''; ?><?php echo $filter_role ? '&role_id='.$filter_role : ''; ?><?php echo $filter_date_from ? '&date_from='.$filter_date_from : ''; ?><?php echo $filter_date_to ? '&date_to='.$filter_date_to : ''; ?>">
                     <i class="fas fa-angle-double-right"></i>
                 </a>
                 <?php endif; ?>
@@ -624,6 +1065,19 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 Showing page <?php echo $page; ?> of <?php echo $total_pages; ?> (<?php echo number_format($total_records); ?> total records)
             </div>
             <?php endif; ?>
+        </div>
+
+        <!-- Log Details Modal -->
+        <div id="logDetailsModal" class="log-modal">
+            <div class="log-modal-content">
+                <div class="log-modal-header">
+                    <h2>Log Details</h2>
+                    <span class="log-close" onclick="closeLogModal()">&times;</span>
+                </div>
+                <div class="log-modal-body" id="logDetailsContent">
+                    <!-- Details content will be injected here -->
+                </div>
+            </div>
         </div>
     </main>
 
@@ -675,6 +1129,23 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 if (alert) alert.style.display = 'none';
             });
         }, 5000);
+        // Log Details Modal Functions
+        function viewLogDetails(elementId) {
+            const content = document.getElementById(elementId).innerHTML;
+            document.getElementById('logDetailsContent').innerHTML = content;
+            document.getElementById('logDetailsModal').style.display = 'block';
+        }
+
+        function closeLogModal() {
+            document.getElementById('logDetailsModal').style.display = 'none';
+        }
+
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('logDetailsModal');
+            if (event.target == modal) {
+                closeLogModal();
+            }
+        });
     </script>
 </body>
 </html>

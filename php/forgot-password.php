@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             <div class="step-indicator">
                 <div class="step active" id="step1">
                     <div class="step-number">1</div>
-                    <div class="step-title">Enter Email</div>
+                    <div class="step-title">Enter Username/ID Number</div>
                 </div>
                 <div class="step" id="step2">
                     <div class="step-number">2</div>
@@ -60,14 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 </div>
             </div>
 
-            <!-- Step 1: Email Input -->
+            <!-- Step 1: Identifier Input -->
             <div id="step1-content" class="step-content">
-                <p>Enter your registered email address. We'll send you a one-time password (OTP) to verify your
-                    identity.</p>
-
-                <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" class="form-control" placeholder="your.email@example.com" required>
+                <p>Enter your <strong>username</strong> or <strong>ID number</strong>. We'll send an OTP to your registered email address to verify your identity.</p>
+ 
+                 <div class="form-group">
+                    <label for="email">Username or ID Number</label>
+                    <input type="text" id="email" class="form-control" placeholder="Username or ID number" required>
                     <div id="email-error" class="error-message"></div>
                     <div id="email-success" class="success-message"></div>
                 </div>
@@ -111,24 +110,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
             <!-- Step 3: Security Questions -->
             <div id="step3-content" class="step-content" style="display: none;">
-                <p>Select one of your security questions and provide the answer.</p>
+                <p>Please provide the answers to all three of your security questions to verify your identity.</p>
 
-                <div class="form-group">
-                    <label for="security-question">Select Security Question</label>
-                    <select id="security-question" class="form-control" required>
-                        <option value="">-- Select a question --</option>
-                    </select>
+                <div id="security-questions-fields">
+                    <!-- Dynamic questions will be injected here -->
                 </div>
 
-                <div class="form-group">
-                    <label for="security-answer">Your Answer</label>
-                    <input type="text" id="security-answer" class="form-control" placeholder="Enter your answer"
-                        required>
-                    <div id="answer-error" class="error-message"></div>
-                    <div id="answer-attempts" class="attempts-display"></div>
-                </div>
+                <div id="answer-error" class="error-message" style="margin-top: 15px;"></div>
+                <div id="answer-attempts" class="attempts-display"></div>
 
-                <button id="verify-answer-btn" class="btn-reset" onclick="verifyAnswer()">Verify Answer</button>
+                <button id="verify-answer-btn" class="btn-reset" onclick="verifyAnswer()">Verify Answers</button>
 
                 <div class="back-link">
                     <a href="#" onclick="goBackToEmail()">← Use a different email</a>
@@ -175,15 +166,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 <button class="btn-reset" onclick="window.location.href='login.php'">Go to Login</button>
             </div>
 
-            <!-- Email Not Found Message -->
+            <!-- Account Not Found Message -->
             <div id="email-not-found-content" class="step-content" style="display: none; text-align: center;">
                 <div style="color: #f44336; font-size: 48px; margin: 20px 0;">✗</div>
-                <h3>Email Not Found</h3>
-                <p>The email address you entered is not registered with our system.</p>
+                <h3>Account Not Found</h3>
+                <p>The username or ID number you entered is not registered with our system.</p>
                 <div class="action-buttons">
-                    <button class="btn-reset" onclick="goBackToEmail()">Try Different Email</button>
-                    <button class="btn-secondary" onclick="window.location.href='register.php'">Create
-                        Account</button>
+                    <button class="btn-reset" onclick="goBackToEmail()">Try Different Username/ID Number</button>
+                    <button class="btn-secondary" onclick="window.location.href='register.php'">Create Account</button>
                 </div>
             </div>
         </div>
@@ -235,26 +225,36 @@ if (!$data && !empty($_POST)) {
     $data = $_POST;
 }
 
-if (empty($data['email'])) {
-    $response['message'] = 'Email is required';
+if (empty($data['email']) && empty($data['identifier'])) {
+    $response['message'] = 'Username or ID number is required';
     echo json_encode($response);
     exit();
 }
 
-$email = trim($data['email']);
+$identifier = trim($data['identifier'] ?? $data['email']);
 $isResend = !empty($data['resend']);
 
 try {
     $resetLogic = new PasswordReset($conn);
     
-    // Check if email exists
-    $stmt = $conn->prepare("SELECT user_id, username, email FROM users WHERE email = :email LIMIT 1");
-    $stmt->execute([':email' => $email]);
+    // Check if username OR id_number exists
+    $stmt = $conn->prepare("SELECT user_id, username, email, id_number, is_active FROM users WHERE id_number = :identifier OR username = :identifier LIMIT 1");
+    $stmt->execute([':identifier' => $identifier]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
+    // For rate limiting, always use the resolved email (or the identifier if user not found)
+    $email = $user ? $user['email'] : 'rate_limit_attempt';
+    
     if (!$user) {
-        $response['message'] = 'The email address "' . htmlspecialchars($email) . '" is not registered in our system.';
+        $response['message'] = 'The username or ID number "' . htmlspecialchars($identifier) . '" is not registered in our system.';
         $response['email_not_found'] = true;
+        echo json_encode($response);
+        exit();
+    }
+
+    // Check if account is active
+    if (!$user['is_active']) {
+        $response['message'] = 'This account is currently inactive and cannot use the password reset feature.';
         echo json_encode($response);
         exit();
     }

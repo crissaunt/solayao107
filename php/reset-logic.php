@@ -263,12 +263,65 @@ class PasswordReset {
             }
         }
     
-    // Verify security answer
+    // Verify multiple security answers at once
+    public function verifyAllAnswers($userId, $answers) {
+        try {
+            // Fetch all hashed answers for this user
+            $stmt = $this->conn->prepare("
+                SELECT usa.question_id, usa.answer_hash, u.email 
+                FROM user_security_answers usa
+                JOIN users u ON usa.user_id = u.user_id
+                WHERE usa.user_id = :user_id
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $dbAnswers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            if (count($dbAnswers) < 3) {
+                return ['success' => false, 'message' => 'User does not have enough security questions set up'];
+            }
+            
+            $userEmail = $dbAnswers[0]['email'] ?? '';
+            
+            // Map DB answers for easy lookup
+            $dbMap = [];
+            foreach ($dbAnswers as $row) {
+                $dbMap[$row['question_id']] = $row['answer_hash'];
+            }
+            
+            // Check each provided answer
+            $allCorrect = true;
+            foreach ($answers as $provided) {
+                $qId = $provided['question_id'];
+                $ansText = strtolower(trim($provided['answer']));
+                
+                if (!isset($dbMap[$qId]) || !password_verify($ansText, $dbMap[$qId])) {
+                    $allCorrect = false;
+                    break;
+                }
+            }
+            
+            if ($allCorrect && count($answers) >= 3) {
+                $this->logAttempt($userId, $userEmail, 'answer_verify', true, 'All security answers verified');
+                return ['success' => true];
+            } else {
+                $this->logAttempt($userId, $userEmail, 'answer_verify', false, 'One or more incorrect security answers');
+                return ['success' => false, 'message' => 'Incorrect security answers provided'];
+            }
+            
+        } catch (PDOException $e) {
+            error_log("Verify multiple answers failed: " . $e->getMessage());
+            return ['success' => false, 'message' => 'System error occurred'];
+        }
+    }
+
+    // Verify security answer (individual - kept for backward compatibility if needed)
     public function verifyAnswer($userId, $questionId, $answer) {
         try {
             $stmt = $this->conn->prepare("
-                SELECT answer_hash FROM user_security_answers 
-                WHERE user_id = :user_id AND question_id = :question_id
+                SELECT usa.answer_hash, u.email 
+                FROM user_security_answers usa
+                JOIN users u ON usa.user_id = u.user_id
+                WHERE usa.user_id = :user_id AND usa.question_id = :question_id
             ");
             
             $stmt->execute([
@@ -277,6 +330,7 @@ class PasswordReset {
             ]);
             
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $userEmail = $result['email'] ?? '';
             
             if (!$result) {
                 $this->logAttempt($userId, '', 'answer_verify', false, 'Question not found for user');
@@ -287,10 +341,10 @@ class PasswordReset {
             $normalizedAnswer = strtolower(trim($answer));
             
             if (password_verify($normalizedAnswer, $result['answer_hash'])) {
-                $this->logAttempt($userId, '', 'answer_verify', true, 'Security answer verified');
+                $this->logAttempt($userId, $userEmail, 'answer_verify', true, 'Security answer verified');
                 return ['success' => true];
             } else {
-                $this->logAttempt($userId, '', 'answer_verify', false, 'Incorrect security answer');
+                $this->logAttempt($userId, $userEmail, 'answer_verify', false, 'Incorrect security answer');
                 return ['success' => false, 'message' => 'Incorrect answer'];
             }
             
@@ -306,6 +360,11 @@ class PasswordReset {
             // Hash new password
             $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
             
+            // Fetch email for logging before deletion of session
+            $emailStmt = $this->conn->prepare("SELECT email FROM users WHERE user_id = :user_id");
+            $emailStmt->execute([':user_id' => $userId]);
+            $userEmail = $emailStmt->fetchColumn() ?: '';
+
             $stmt = $this->conn->prepare("
                 UPDATE users 
                 SET password = :password, 
@@ -326,7 +385,7 @@ class PasswordReset {
             ");
             $cleanStmt->execute([':user_id' => $userId]);
             
-            $this->logAttempt($userId, '', 'password_update', true, 'Password updated successfully');
+            $this->logAttempt($userId, $userEmail, 'password_update', true, 'Password updated successfully');
             
             return ['success' => true, 'message' => 'Password updated successfully'];
             

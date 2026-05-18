@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    document.getElementById('security-answer').addEventListener('keypress', function (e) {
+    document.getElementById('verify-answer-btn').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             verifyAnswer();
         }
@@ -182,8 +182,6 @@ function goToStep(stepNumber) {
         // Re-enable any potentially disabled fields
         document.getElementById('otp').disabled = false;
         document.getElementById('verify-otp-btn').disabled = false;
-        document.getElementById('security-question').disabled = false;
-        document.getElementById('security-answer').disabled = false;
         document.getElementById('verify-answer-btn').disabled = false;
         document.getElementById('resend-link').classList.remove('disabled');
 
@@ -194,8 +192,6 @@ function goToStep(stepNumber) {
         answerAttempts = 0;
 
         // Enable all fields
-        document.getElementById('security-question').disabled = false;
-        document.getElementById('security-answer').disabled = false;
         document.getElementById('verify-answer-btn').disabled = false;
     }
 }
@@ -210,15 +206,9 @@ function sendOTP() {
     emailError.style.display = 'none';
     emailSuccess.style.display = 'none';
 
-    // Validate email
+    // Validate identifier
     if (!email) {
-        emailError.textContent = 'Email is required';
-        emailError.style.display = 'block';
-        return;
-    }
-
-    if (!isValidEmail(email)) {
-        emailError.textContent = 'Please enter a valid email address';
+        emailError.textContent = 'Username or ID number is required';
         emailError.style.display = 'block';
         return;
     }
@@ -234,7 +224,7 @@ function sendOTP() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: email })
+        body: JSON.stringify({ identifier: email })
     })
         .then(response => response.json())
         .then(data => {
@@ -263,10 +253,10 @@ function sendOTP() {
                     data.message.toLowerCase().includes('does not exist') ||
                     data.message.toLowerCase().includes('not registered')) {
 
-                    // Offer to go back to email entry
+                    // Offer to go back to entry
                     setTimeout(() => {
                         emailError.innerHTML = data.message + '<br><br>' +
-                            '<button onclick="clearEmailAndRetry()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try a different email</button> ' +
+                            '<button onclick="clearEmailAndRetry()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try a different username/ID</button> ' +
                             '<button onclick="window.location.href=\'register.php\'" style="background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Create new account</button>';
                     }, 100);
                 }
@@ -349,7 +339,7 @@ function verifyOTP() {
                     // Suggest going back to step 1
                     setTimeout(() => {
                         otpError.innerHTML = data.message + '<br><br>' +
-                            '<button onclick="goBackToEmail()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try with a different email</button>';
+                            '<button onclick="goBackToEmail()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try with a different ID/Username</button>';
                     }, 100);
                 }
             }
@@ -365,7 +355,6 @@ function verifyOTP() {
         });
 }
 
-// Load security questions
 function loadSecurityQuestions() {
     fetch('../php/get-questions.php', {
         method: 'POST',
@@ -377,30 +366,39 @@ function loadSecurityQuestions() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const select = document.getElementById('security-question');
-                select.innerHTML = '<option value="">-- Select a question --</option>';
+                const container = document.getElementById('security-questions-fields');
+                container.innerHTML = ''; // Clear previous questions
 
-                data.questions.forEach(question => {
-                    const option = document.createElement('option');
-                    option.value = question.question_id;
-                    option.textContent = question.question_text;
-                    select.appendChild(option);
+                data.questions.forEach((question, index) => {
+                    const group = document.createElement('div');
+                    group.className = 'form-group';
+                    group.style.marginBottom = '20px';
+                    
+                    const label = document.createElement('label');
+                    label.textContent = `Question ${index + 1}: ${question.question_text}`;
+                    label.style.display = 'block';
+                    label.style.marginBottom = '8px';
+                    label.style.fontWeight = 'bold';
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control security-answer-input';
+                    input.dataset.questionId = question.question_id;
+                    input.placeholder = 'Enter your answer';
+                    input.required = true;
+                    
+                    group.appendChild(label);
+                    group.appendChild(input);
+                    container.appendChild(group);
                 });
 
                 goToStep(3);
             } else {
                 alert(data.message);
-
-                // If no security questions found or user not found, go back to email
-                if (data.message.toLowerCase().includes('no questions') ||
-                    data.message.toLowerCase().includes('user not found') ||
-                    data.message.toLowerCase().includes('not found')) {
-
+                if (data.message.toLowerCase().includes('not found')) {
                     setTimeout(() => {
                         if (confirm("Account verification failed. Please try with a different email.")) {
                             goToStep(1);
-                            document.getElementById('email').value = '';
-                            document.getElementById('email').focus();
                         }
                     }, 500);
                 }
@@ -414,23 +412,30 @@ function loadSecurityQuestions() {
 
 // Step 3: Verify security answer
 function verifyAnswer() {
-    const questionId = document.getElementById('security-question').value;
-    const answer = document.getElementById('security-answer').value.trim();
+    const answerInputs = document.querySelectorAll('.security-answer-input');
     const answerError = document.getElementById('answer-error');
     const attemptsDisplay = document.getElementById('answer-attempts');
 
     // Reset error
     answerError.style.display = 'none';
 
-    // Validate inputs
-    if (!questionId) {
-        answerError.textContent = 'Please select a security question';
-        answerError.style.display = 'block';
-        return;
-    }
+    // Collect all answers
+    const answers = [];
+    let allFilled = true;
 
-    if (!answer) {
-        answerError.textContent = 'Please enter your answer';
+    answerInputs.forEach(input => {
+        const val = input.value.trim();
+        if (!val) {
+            allFilled = false;
+        }
+        answers.push({
+            question_id: input.dataset.questionId,
+            answer: val
+        });
+    });
+
+    if (!allFilled) {
+        answerError.textContent = 'Please provide answers to all three questions';
         answerError.style.display = 'block';
         return;
     }
@@ -448,8 +453,7 @@ function verifyAnswer() {
         },
         body: JSON.stringify({
             user_id: currentUserId,
-            question_id: questionId,
-            answer: answer
+            answers: answers
         })
     })
         .then(response => response.json())
@@ -463,21 +467,16 @@ function verifyAnswer() {
                 answerError.textContent = data.message;
                 answerError.style.display = 'block';
 
-                // Check for lockout from server
                 if (data.lock_time && data.lock_time > 0) {
                     attemptsDisplay.textContent = 'Too many attempts. Account is locked.';
                     btn.disabled = true;
-
-                    // Use database-provided lock time instead of hardcoded 1800
-                    lockAnswerField(data.lock_time);
-
-                    // Offer to go back to email entry
+                    lockAnswerFields(data.lock_time);
+                    
                     setTimeout(() => {
                         answerError.innerHTML = data.message + '<br><br>' +
-                            '<button onclick="goBackToEmail()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try with a different email</button>';
+                            '<button onclick="goBackToEmail()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try with a different ID/Username</button>';
                     }, 100);
                 } else {
-                    // Update attempts display for non-lockout failures
                     attemptsDisplay.textContent = data.message;
                 }
             }
@@ -489,7 +488,7 @@ function verifyAnswer() {
         })
         .finally(() => {
             btn.disabled = false;
-            btn.textContent = 'Verify Answer';
+            btn.textContent = 'Verify Answers';
         });
 }
 
@@ -559,7 +558,7 @@ function updatePassword() {
 
                     setTimeout(() => {
                         confirmError.innerHTML = data.message + '<br><br>' +
-                            '<button onclick="goBackToEmail()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try with a different email</button>';
+                            '<button onclick="goBackToEmail()" style="background: #f0f0f0; border: 1px solid #ddd; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try with a different ID/Username</button>';
                     }, 100);
                 }
             }
@@ -594,7 +593,7 @@ function resendOTP() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            email: document.getElementById('email').value,
+            identifier: document.getElementById('email').value,
             resend: true
         })
     })
@@ -607,10 +606,10 @@ function resendOTP() {
             } else {
                 alert(data.message);
 
-                // If email doesn't exist
-                if (data.message.toLowerCase().includes('email not found') ||
-                    data.message.toLowerCase().includes('not found')) {
-                    if (confirm("Email not found. Would you like to enter a different email?")) {
+                // If account doesn't exist
+                if (data.message.toLowerCase().includes('not found') ||
+                    data.message.toLowerCase().includes('not registered')) {
+                    if (confirm("Account not found. Would you like to enter a different username or ID?")) {
                         goToStep(1);
                         document.getElementById('email').value = '';
                         document.getElementById('email').focus();
@@ -752,40 +751,34 @@ function lockOTPFields(seconds) {
     }, 1000);
 }
 
-function lockAnswerField(seconds) {
-    const questionSelect = document.getElementById('security-question');
-    const answerInput = document.getElementById('security-answer');
+function lockAnswerFields(seconds) {
+    const answerInputs = document.querySelectorAll('.security-answer-input');
     const verifyBtn = document.getElementById('verify-answer-btn');
     const attemptsDisplay = document.getElementById('answer-attempts');
 
-    questionSelect.disabled = true;
-    answerInput.disabled = true;
+    answerInputs.forEach(input => input.disabled = true);
     verifyBtn.disabled = true;
 
     const lockTimer = setInterval(() => {
         seconds--;
         const minutes = Math.floor(seconds / 60);
-        const secs = seconds % 60;
+        const secs = Math.floor(seconds % 60);
 
-        // Fix: Use Math.floor() to remove decimals from seconds
-        const displaySecs = Math.floor(secs);
-        attemptsDisplay.textContent = `Locked. Try again in ${minutes}:${displaySecs.toString().padStart(2, '0')}`;
+        attemptsDisplay.textContent = `Locked. Try again in ${minutes}:${secs.toString().padStart(2, '0')}`;
 
         if (seconds <= 0) {
             clearInterval(lockTimer);
-            questionSelect.disabled = false;
-            answerInput.disabled = false;
+            answerInputs.forEach(input => {
+                input.disabled = false;
+                input.value = '';
+            });
             verifyBtn.disabled = false;
             answerAttempts = 0;
             attemptsDisplay.textContent = '';
 
-            answerInput.value = '';
-
             // Offer to go back to email entry
             if (confirm("Lockout period ended. Would you like to try with a different email?")) {
                 goToStep(1);
-                document.getElementById('email').value = '';
-                document.getElementById('email').focus();
             }
         }
     }, 1000);

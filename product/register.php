@@ -51,21 +51,21 @@ if (isset($_SESSION['user_id'])) {
                         <div class="input-box">
                             <label for="id">Id number:</label>
                             <input type="text" id="id" name="id" 
-                            placeholder="Ex. 0000-0000" >
+                            placeholder="Ex. 0000-0000" autocomplete="off">
                             <div class="error"></div>
                         </div>
 
                         <div class="input-box">
                             <label for="email">Email:</label>
                             <input type="text" id="email" name="email" 
-                             placeholder="Ex. alex.ligalig@company.com" >
+                             placeholder="Ex. alex.ligalig@company.com" autocomplete="email">
                              <div class="error"></div>
                         </div>
 
                         <div class="input-box">
                             <label for="contact_number">Contact Number:</label>
                             <input type="text" id="contact_number" name="contact_number" 
-                            placeholder="Ex. 09123456789" >
+                            placeholder="Ex. 09123456789" autocomplete="tel">
                             <div class="error"></div>
                         </div>
                     </div>
@@ -74,21 +74,21 @@ if (isset($_SESSION['user_id'])) {
                         <div class="input-box">
                             <label for="username">Username:</label>
                             <input type="text" id="username" name="username"
-                            placeholder="Ex. alex24" >
+                            placeholder="Ex. alex24" autocomplete="username">
                             <div class="error"></div>
                         </div>
 
                         <div class="input-box">
                             <label for="fname">First Name:</label>
                             <input type="text" id="fname" name="fname"
-                            placeholder="Ex. Alex" >
+                            placeholder="Ex. Alex" autocomplete="given-name">
                             <div class="error"></div>
                         </div>
 
                         <div class="input-box " >
                             <label for="mname" style="display: flex;">Middle Name(<p style="color: rgb(214, 51, 51);font-size: 13px;">Optional</p>):</label>
                             <input type="text" id="mname" name="mname"
-                             placeholder="Ex. Dela Cruz" >
+                             placeholder="Ex. Dela Cruz" autocomplete="additional-name">
                               <div class="error"></div>
                         </div>
 
@@ -96,7 +96,7 @@ if (isset($_SESSION['user_id'])) {
                         <div class="input-box">
                             <label for="lname">Last Name:</label>
                             <input type="text" name="lname" id="lname" 
-                              placeholder="Ex. Ligalig" >
+                              placeholder="Ex. Ligalig" autocomplete="family-name">
                               <div class="error"></div>
                         </div>
                     </div>
@@ -104,13 +104,13 @@ if (isset($_SESSION['user_id'])) {
                     <div class="column">
                         <div class="input-box">
                             <label for="extend_name" style="display:flex;font-size: 12px;margin-top:2px">Extension Name(<p style="color: rgb(214, 51, 51);font-size: 13px;">Optional</p>):</label>
-                            <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr.">
+                            <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr." autocomplete="honorific-suffix">
                             <div class="error"></div>
                         </div>
 
                         <div class="input-box" style="width: 170px;">
                             <label for="birthday">Birthday</label>
-                            <input type="date" id="birthday" name="birthday"  onchange="calculateAge()">
+                            <input type="date" id="birthday" name="birthday"  onchange="calculateAge()" autocomplete="bday">
                             <div class="error"></div>
                         </div>
 
@@ -135,7 +135,7 @@ if (isset($_SESSION['user_id'])) {
                         <!-- Password input with strength meter -->
                         <div class="input-box">
                             <label for="password">Password:</label>
-                            <input type="password" id="password" name="password" placeholder="Enter your password">
+                            <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="new-password">
                             <div class="strength-meter" id="strength-meter"></div>
                             <span class="strength-text" id="strength-text">Password Strength: </span>
                             <div class="error"></div>
@@ -155,7 +155,7 @@ if (isset($_SESSION['user_id'])) {
                         <!-- Re-enter password input -->
                         <div class="input-box">
                             <label for="repassword">Enter Password again:</label>
-                            <input type="password" id="repassword" name="repassword" placeholder="Enter your password again">
+                            <input type="password" id="repassword" name="repassword" placeholder="Enter your password again" autocomplete="new-password">
                             <div class="error"></div>
                         </div>
                     
@@ -174,21 +174,21 @@ if (isset($_SESSION['user_id'])) {
                     <div class="input-box">
                         <label for="street_purok">Purok/Street:</label>
                         <input type="text" name="street_purok" id="street_purok"  
-                          >
+                          autocomplete="country-name">
                          <div class="error"></div>
                     </div>
 
                     <div class="input-box">
                         <label for="barangay">Barangay:</label>
                         <input type="text" name="barangay" id="barangay" 
-                      >
+                      autocomplete="address-level3">
                          <div class="error"></div>
                     </div>
 
                     <div class="input-box">
                         <label for="city_municipal">City/Municipal:</label>
                         <input type="text" name="city_municipal" id="city_municipal" 
-                     >
+                     autocomplete="address-level2">
                         <div class="error"></div>
                     </div>
                 </div>
@@ -196,20 +196,19 @@ if (isset($_SESSION['user_id'])) {
                 <div class="column">
                     <div class="input-box">
                         <label for="province">Province</label>
-                        <input type="text" name="province" id="province" 
-                      >
+                        <input type="text" name="province" id="province" autocomplete="address-level1">
                         <div class="error"></div>
                     </div>
                     <div class="input-box">
                         <label for="country">Country</label>
                         <input type="text" name="country" id="country"  
-                         >
+                         autocomplete="address-level1">
                         <div class="error"></div>
                     </div>
 
                     <div class="input-box">
                         <label for="zipcode">Zip Code</label>
-                        <input type="text" id="zipcode"  name="zipcode" ="Ex. 8000">
+                        <input type="text" id="zipcode" name="zipcode" placeholder="Ex. 8000" autocomplete="postal-code">
                         
                         <div class="error"></div>
                     </div>

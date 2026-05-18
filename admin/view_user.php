@@ -22,7 +22,7 @@ if (!isset($_GET['id'])) {
     exit();
 }
 
-$user_id = (int)$_GET['id'];
+$id = (int)$_GET['id'];
 
 try {
     $query = "
@@ -35,140 +35,120 @@ try {
         WHERE u.user_id = :user_id
     ";
     $stmt = $conn->prepare($query);
-    $stmt->execute([':user_id' => $user_id]);
+    $stmt->execute([':user_id' => $id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
         echo '<div class="alert alert-error">User not found.</div>';
         exit();
     }
-    
-    // Get activity summary
-    $activity_query = "
-        SELECT 
-            COUNT(*) as total_activities,
-            COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as activities_30d,
-            MAX(created_at) as last_activity
-        FROM admin_activity_logs 
-        WHERE record_id = :user_id::text AND table_name = 'users'
-    ";
-    $activity_stmt = $conn->prepare($activity_query);
-    $activity_stmt->execute([':user_id' => $user_id]);
-    $activity = $activity_stmt->fetch(PDO::FETCH_ASSOC);
-    
-    $full_name = trim(($user['first_name'] ?? '') . ' ' . ($user['middle_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-    if (!empty($user['extension_name'])) {
-        $full_name .= ' ' . $user['extension_name'];
+
+    // Fetch security questions
+    $q_stmt = $conn->prepare("
+        SELECT q.question_text 
+        FROM user_security_answers a
+        JOIN security_questions q ON a.question_id = q.question_id
+        WHERE a.user_id = :uid
+    ");
+    $q_stmt->execute([':uid' => $id]);
+    $questions = $q_stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    // Calculate age if not provided
+    $age = $user['age'];
+    if (!$age && !empty($user['birthday'])) {
+        $birthDate = new DateTime($user['birthday']);
+        $today = new DateTime();
+        $age = $today->diff($birthDate)->y;
+    }
+
+    function renderField($label, $value) {
+        return '<div class="log-field">
+                    <span class="log-field-label">' . htmlspecialchars($label) . ':</span>
+                    <span class="log-field-value">' . htmlspecialchars($value ?: 'Not provided') . '</span>
+                </div>';
     }
     ?>
     
-    <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--gray-200);">
-        <div style="width: 70px; height: 70px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 28px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-            <?php 
-            echo strtoupper(substr($user['first_name'] ?? 'U', 0, 1)) . 
-                 strtoupper(substr($user['last_name'] ?? 'S', 0, 1));
-            ?>
-        </div>
-        <div>
-            <h2 style="color: var(--primary-dark); font-size: 1.5rem; margin: 0; font-weight: 700;"><?php echo htmlspecialchars($full_name ?: 'Unnamed User'); ?></h2>
-            <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem; align-items: center;">
-                <span style="color: var(--secondary); font-size: 0.9rem;">@<?php echo htmlspecialchars($user['username'] ?? 'unknown'); ?></span>
-                <span class="role-badge" style="margin: 0; transform: scale(0.9);"><?php echo htmlspecialchars($user['role_name'] ?? 'User'); ?></span>
-                <?php if ($user['is_active']): ?>
-                <span class="badge badge-success" style="margin: 0; transform: scale(0.9);">Active</span>
-                <?php else: ?>
-                <span class="badge badge-danger" style="margin: 0; transform: scale(0.9);">Inactive</span>
-                <?php endif; ?>
+    <div class="detailed-log-view">
+        <!-- Profile Header -->
+        <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem; padding: 1.5rem; background: #fcfdfc; border-radius: 12px; border: 1px solid #eef5eb;">
+            <div style="width: 64px; height: 64px; background: #1e4d2d; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 24px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <?php echo strtoupper(substr($user['first_name'] ?? 'U', 0, 1) . substr($user['last_name'] ?? 'S', 0, 1)); ?>
+            </div>
+            <div>
+                <h2 style="color: #1a2a1f; font-size: 1.4rem; margin: 0; font-weight: 700;"><?php echo htmlspecialchars(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')); ?></h2>
+                <div style="display: flex; gap: 10px; margin-top: 5px; align-items: center;">
+                    <span style="color: #6b7c6b; font-size: 0.9rem;">ID: <?php echo htmlspecialchars($user['id_number'] ?: 'N/A'); ?></span>
+                    <span style="background: #eef5eb; color: #1e4d2d; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase;"><?php echo htmlspecialchars($user['role_name'] ?? 'User'); ?></span>
+                    <?php if ($user['is_active']): ?>
+                        <span style="background: #e6f9ed; color: #1e7e34; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase;">Active</span>
+                    <?php else: ?>
+                        <span style="background: #fff5f5; color: #c53030; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase;">Inactive</span>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
-        <div class="glass-card" style="padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-envelope" style="margin-right: 0.25rem;"></i> Email Address
-            </div>
-            <div style="font-size: 1rem; color: var(--primary-dark);"><?php echo htmlspecialchars($user['email'] ?? 'Not provided'); ?></div>
-        </div>
-        
-        <div class="glass-card" style="padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-id-card" style="margin-right: 0.25rem;"></i> ID Number
-            </div>
-            <div style="font-size: 1rem; color: var(--primary-dark);"><?php echo htmlspecialchars($user['id_number'] ?? 'Not provided'); ?></div>
-        </div>
-        
-        <div class="glass-card" style="padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-birthday-cake" style="margin-right: 0.25rem;"></i> Personal Info
-            </div>
-            <div style="font-size: 1rem; color: var(--primary-dark);">
+
+        <!-- 1. Account Information -->
+        <div class="log-detail-section">
+            <h4 class="log-section-title"><i class="fas fa-user-circle"></i> Account Information</h4>
+            <div class="log-grid">
                 <?php 
-                if (!empty($user['birthday'])) {
-                    echo date('M d, Y', strtotime($user['birthday']));
-                    if (!empty($user['age'])) {
-                        echo ' (' . $user['age'] . ' yrs)';
-                    }
-                } else {
-                    echo 'No DOB';
-                }
-                echo ' • ' . ($user['sex'] ?? 'Unspecified');
+                echo renderField('ID Number', $user['id_number']);
+                echo renderField('Username', $user['username']);
+                echo renderField('Email', $user['email']);
+                echo renderField('Contact Number', $user['contact_number']);
                 ?>
             </div>
         </div>
-        
-        <div class="glass-card" style="padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-phone" style="margin-right: 0.25rem;"></i> Contact
-            </div>
-            <div style="font-size: 1rem; color: var(--primary-dark);"><?php echo htmlspecialchars($user['contact_number'] ?? 'Not provided'); ?></div>
-        </div>
-        
-        <div class="glass-card" style="grid-column: 1 / -1; padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-map-marker-alt" style="margin-right: 0.25rem;"></i> Address
-            </div>
-            <div style="font-size: 1rem; color: var(--primary-dark);">
+
+        <!-- 2. Personal Information -->
+        <div class="log-detail-section">
+            <h4 class="log-section-title"><i class="fas fa-id-card"></i> Personal Information</h4>
+            <div class="log-grid">
                 <?php 
-                $address = array_filter([
-                    $user['street_purok'] ?? '',
-                    $user['barangay'] ?? '',
-                    $user['city_municipal'] ?? '',
-                    $user['province'] ?? '',
-                    $user['country'] ?? ''
-                ]);
-                
-                if (!empty($address)) {
-                    echo htmlspecialchars(implode(', ', $address));
-                    if (!empty($user['zipcode'])) {
-                        echo ' ' . $user['zipcode'];
-                    }
-                } else {
-                    echo 'No address provided';
-                }
+                echo renderField('First Name', $user['first_name']);
+                echo renderField('Middle Name', $user['middle_name'] ?: 'None');
+                echo renderField('Last Name', $user['last_name']);
+                echo renderField('Extension Name', $user['extension_name'] ?: 'None');
+                echo renderField('Birthday', !empty($user['birthday']) ? date('d/m/Y', strtotime($user['birthday'])) : '');
+                echo renderField('Age', $age ? $age . ' years old' : '');
+                echo renderField('Sex', ucwords($user['sex'] ?? ''));
+                echo renderField('Password', '********');
                 ?>
             </div>
         </div>
-        
-        <div class="glass-card" style="padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-clock" style="margin-right: 0.25rem;"></i> Activity Status
-            </div>
-            <div style="font-size: 0.9rem; color: var(--primary-dark);">
-                Joined: <?php echo date('M d, Y', strtotime($user['created_at'])); ?><br>
-                Last Login: <?php echo $user['last_login'] ? date('M d, H:i', strtotime($user['last_login'])) : 'Never'; ?>
+
+        <!-- 3. Address Information -->
+        <div class="log-detail-section">
+            <h4 class="log-section-title"><i class="fas fa-map-marker-alt"></i> Personal Address</h4>
+            <div class="log-grid">
+                <?php 
+                echo renderField('Purok/Street', $user['street_purok']);
+                echo renderField('Barangay', $user['barangay']);
+                echo renderField('City/Municipal', $user['city_municipal']);
+                echo renderField('Province', $user['province']);
+                echo renderField('Country', $user['country']);
+                echo renderField('Zip Code', $user['zipcode']);
+                ?>
             </div>
         </div>
-        
-        <div class="glass-card" style="padding: 1rem; border: 1px solid var(--gray-200); background: var(--gray-50);">
-            <div style="font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
-                <i class="fas fa-chart-line" style="margin-right: 0.25rem;"></i> Engagement
-            </div>
-            <div style="font-size: 0.9rem; color: var(--primary-dark);">
-                <?php if ($activity['total_activities'] > 0): ?>
-                <?php echo $activity['total_activities']; ?> total actions • <?php echo $activity['activities_30d']; ?> last 30d
+
+        <!-- 4. Security Questions -->
+        <div class="log-detail-section">
+            <h4 class="log-section-title"><i class="fas fa-shield-alt"></i> Security Questions</h4>
+            <div class="log-grid">
+                <?php if (!empty($questions)): ?>
+                    <?php foreach ($questions as $i => $q): ?>
+                        <div class="log-field" style="grid-column: span 2;">
+                            <span class="log-field-label">Question <?php echo $i+1; ?>:</span>
+                            <span class="log-field-value"><?php echo htmlspecialchars($q); ?></span>
+                        </div>
+                    <?php endforeach; ?>
                 <?php else: ?>
-                No activity recorded yet
+                    <div class="log-field" style="grid-column: span 4;">
+                        <span class="log-field-value" style="color: #8c9c8c; font-style: italic;">No security questions set.</span>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -176,6 +156,6 @@ try {
     
     <?php
 } catch (PDOException $e) {
-    echo '<div class="alert alert-error">Database error occurred.</div>';
+    echo '<div style="padding: 2rem; text-align: center; color: #c53030; background: #fff5f5; border-radius: 8px;">Database error: ' . htmlspecialchars($e->getMessage()) . '</div>';
 }
 ?>

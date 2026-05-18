@@ -19,12 +19,7 @@ const province = document.getElementById('province');
 const country = document.getElementById('country');
 const zipcode = document.getElementById('zipcode');
 
-const security_question1 = document.getElementById('security_question1');
-const security_answer1 = document.getElementById('security_answer1');
-const security_question2 = document.getElementById('security_question2');
-const security_answer2 = document.getElementById('security_answer2');
-const security_question3 = document.getElementById('security_question3');
-const security_answer3 = document.getElementById('security_answer3');
+// Security question elements will be retrieved dynamically inside functions as they are injected after initial DOM load
 
 age.setAttribute('readonly', true);
 
@@ -105,7 +100,77 @@ function hideLoading() {
     });
 }
 
+// Step navigation
+const step1 = document.getElementById('step-1');
+const step2 = document.getElementById('step-2');
+const nextBtn = document.getElementById('next-to-step-2');
+const backBtn = document.getElementById('back-to-step-1');
+
+nextBtn.addEventListener('click', async () => {
+    console.log('Navigating to Step 2...');
+    if (validateStep1()) {
+        showLoading('Checking if information is already taken...');
+        
+        try {
+            const checkData = new FormData();
+            checkData.append('id', id.value.trim());
+            checkData.append('email', email.value.trim());
+            checkData.append('username', username.value.trim());
+            checkData.append('contact_number', contact_number.value.trim());
+
+            const response = await fetch('../php/check_duplicates.php', {
+                method: 'POST',
+                body: checkData
+            });
+
+            const result = await response.json();
+            hideLoading();
+
+            if (result.status === 'exists') {
+                if (result.errors.id) setError(id, result.errors.id);
+                if (result.errors.email) setError(email, result.errors.email);
+                if (result.errors.username) setError(username, result.errors.username);
+                if (result.errors.contact_number) setError(contact_number, result.errors.contact_number);
+                
+                // Find the first error and scroll to it
+                const firstError = document.querySelector('.input-box.error');
+                if (firstError) {
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                return;
+            } else if (result.status === 'error') {
+                alert('An error occurred while checking information: ' + result.message);
+                return;
+            }
+
+            // If no duplicates, proceed
+            step1.classList.remove('active');
+            step2.classList.add('active');
+            window.scrollTo(0, 0);
+
+        } catch (error) {
+            hideLoading();
+            console.error('Error checking duplicates:', error);
+            alert('Could not verify information. Please try again.');
+        }
+    } else {
+        console.log('Step 1 validation failed');
+        // Find the first error and scroll to it
+        const firstError = document.querySelector('.input-box.error');
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+});
+
+backBtn.addEventListener('click', () => {
+    step2.classList.remove('active');
+    step1.classList.add('active');
+    window.scrollTo(0, 0);
+});
+
 form.addEventListener('submit', async (event) => {
+
     event.preventDefault(); // Prevent the default form submission behavior
 
     console.log('=== FORM SUBMISSION START ===');
@@ -504,14 +569,250 @@ function calculateAge() {
     document.getElementById('age').value = age;
 }
 
+const validateStep1 = () => {
+    const capitalizeWords = (str) => {
+        if (!str) return '';
+        return str
+            .toLowerCase()
+            .replace(/\b\w/g, char => char.toUpperCase())
+            .replace(/\s{2,}/g, ' ');
+    };
+
+    const idValue = id.value.trim(); 
+    const emailValue = email.value.trim();
+    const contact_numberValue = contact_number.value.trim();
+    const usernameValue = username.value;
+    const fnameValue = capitalizeWords(fname.value.trim());
+    const mnameValue = capitalizeWords(mname.value.trim());
+    const lnameValue = capitalizeWords(lname.value.trim());
+    const extend_nameValue = extend_name.value.trim();
+    const birthdayValue = birthday.value.trim();
+    const ageValue = parseInt(age.value.trim()) || 0;
+    const genderValue = gender.value.trim();
+    const passwordValue = password.value.trim();
+    const repasswordValue = repassword.value.trim();
+    const street_purokValue = capitalizeWords(street_purok.value.trim());
+    const barangayValue = capitalizeWords(barangay.value.trim());
+    const city_municipalValue = capitalizeWords(city_municipal.value.trim());
+    const provinceValue = capitalizeWords(province.value.trim());
+    const countryValue = capitalizeWords(country.value.trim());
+    const zipcodeValue = zipcode.value.trim();
+
+    let isValid = true;
+
+    // ID VALIDATION
+    if (idValue === '') {
+        setError(id, 'ID number is required');
+        isValid = false;
+    } else if (!/^\d{4}-\d{4}$/.test(idValue)) {
+        setError(id, 'ID Number must be in the format xxxx-xxxx');
+        isValid = false;
+    } else {
+        setSuccess(id);
+    }
+
+    // USERNAME VALIDATION
+    if (usernameValue === '') {
+        setError(username, 'Username is required');
+        isValid = false;
+    } else if (usernameValue.length < 5 || usernameValue.length > 20) {
+        setError(username, 'Username must be between 5 and 20 characters');
+        isValid = false;
+    } else if(/[A-Z]/.test(usernameValue)) {
+        setError(username, 'No capital letters allowed');
+        isValid = false;
+    } else if(/\s/.test(usernameValue)) {
+        setError(username, 'No spaces allowed');
+        isValid = false;
+    } else if(!/^(?![0-9])/.test(usernameValue)) {
+        setError(username, 'Username cannot start with a number');
+        isValid = false;
+    } else {
+        setSuccess(username);
+    }
+
+    // EMAIL VALIDATION
+    if (emailValue === '') {
+        setError(email, 'Email is required');
+        isValid = false;
+    } else if (!/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailValue)) {
+        setError(email, 'Please enter a valid email address');
+        isValid = false;
+    } else {
+        setSuccess(email);
+    }
+
+    // CONTACT NUMBER VALIDATION
+    if (contact_numberValue === '') {
+        setError(contact_number, 'Contact number is required');
+        isValid = false;
+    } else if (!/^(09\d{9}|(\+639)\d{9})$/.test(contact_numberValue)) {
+        setError(contact_number, 'Please enter a valid contact number');
+        isValid = false;
+    } else {
+        setSuccess(contact_number);
+    }
+
+    // NAME VALIDATIONS
+    if (fnameValue === '') {
+        setError(fname, 'First Name is required');
+        isValid = false;
+    } else if (fnameValue.length <= 1 || fnameValue.length >= 30) {
+        setError(fname, 'First Name must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(fname);
+    }
+
+    if (lnameValue === '') {
+        setError(lname, 'Last Name is required');
+        isValid = false;
+    } else if (lnameValue.length <= 1 || lnameValue.length >= 30) {
+        setError(lname, 'Last Name must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(lname);
+    }
+
+    // BIRTHDAY & AGE VALIDATION
+    if (birthdayValue === '') {
+        setError(birthday, 'Birthday is required');
+        isValid = false;
+    } else {
+        const birthDate = new Date(birthdayValue);
+        const today = new Date();
+        let ageCalcu = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            ageCalcu--;
+        }
+
+        if (ageCalcu < 18) {
+            setError(birthday, 'You must be at least 18 years old');
+            setError(age, 'You must be at least 18 years old');
+            isValid = false;
+        } else {
+            setSuccess(birthday);
+            setSuccess(age);
+        }
+    }
+
+    // GENDER VALIDATION
+    if (genderValue === '') {
+        setError(gender, 'Sex is required');
+        isValid = false;
+    } else {
+        setSuccess(gender);
+    }
+
+    // PASSWORD VALIDATION
+    if (passwordValue === '') {
+        setError(password, 'Password is required');
+        isValid = false;
+    } else if (passwordValue.length < 8 || passwordValue.length > 30) {
+        setError(password, 'Password must be between 8 and 30 characters');
+        isValid = false;
+    } else {
+        const uppercaseCount = (passwordValue.match(/[A-Z]/g) || []).length;
+        const lowercaseCount = (passwordValue.match(/[a-z]/g) || []).length;
+        const numberCount = (passwordValue.match(/[0-9]/g) || []).length;
+        const specialCount = (passwordValue.match(/[!@#$%^&*(),.?":{}|<>]/g) || []).length;
+        
+        if(uppercaseCount < 2) {
+            setError(password, 'Password must contain at least two (2) uppercase letters');
+            isValid = false;
+        } else if(lowercaseCount < 2) {
+            setError(password, 'Password must contain at least two (2) lowercase letters');
+            isValid = false;
+        } else if(numberCount < 2) {
+            setError(password, 'Password must contain at least two (2) numbers');
+            isValid = false;
+        } else if(specialCount < 2) {
+            setError(password, 'Password must contain at least two (2) special characters');
+            isValid = false;
+        } else if (passwordValue !== repasswordValue) {
+            setError(repassword, 'Passwords do not match');
+            isValid = false;
+        } else {
+            setSuccess(password);
+            setSuccess(repassword);
+        }
+    }
+
+    // ADDRESS VALIDATION
+    if (street_purokValue === '') {
+        setError(street_purok, 'Street/Purok is required');
+        isValid = false;
+    } else if (street_purokValue.length < 2 || street_purokValue.length > 30) {
+        setError(street_purok, 'Street/Purok must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(street_purok);
+    }
+
+    if (barangayValue === '') {
+        setError(barangay, 'Barangay is required');
+        isValid = false;
+    } else if (barangayValue.length < 2 || barangayValue.length > 30) {
+        setError(barangay, 'Barangay must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(barangay);
+    }
+
+    if (city_municipalValue === '') {
+        setError(city_municipal, 'City/Municipal is required');
+        isValid = false;
+    } else if (city_municipalValue.length < 2 || city_municipalValue.length > 30) {
+        setError(city_municipal, 'City/Municipal must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(city_municipal);
+    }
+
+    if (provinceValue === '') {
+        setError(province, 'Province is required');
+        isValid = false;
+    } else if (provinceValue.length < 2 || provinceValue.length > 30) {
+        setError(province, 'Province must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(province);
+    }
+
+    if (countryValue === '') {
+        setError(country, 'Country is required');
+        isValid = false;
+    } else if (countryValue.length < 2 || countryValue.length > 30) {
+        setError(country, 'Country must be between 2 and 30 characters');
+        isValid = false;
+    } else {
+        setSuccess(country);
+    }
+
+    if (zipcodeValue === '') {
+        setError(zipcode, 'Zip Code is required');
+        isValid = false;
+    } else if (!/^\d{4}$/.test(zipcodeValue)) {
+        setError(zipcode, 'Zip Code must be 4 digits');
+        isValid = false;
+    } else {
+        setSuccess(zipcode);
+    }
+
+    return isValid;
+};
+
 const validateInputs = () => {
     
     const capitalizeWords = (str) => {
+        if (!str) return '';
         return str
             .toLowerCase() // Normalize to lowercase
             .replace(/\b\w/g, char => char.toUpperCase()) // Capitalize first letter
             .replace(/\s{2,}/g, ' '); // Remove extra spaces
     };
+
     
     const idValue = id.value.trim(); 
     const emailValue = email.value.trim();
@@ -534,19 +835,22 @@ const validateInputs = () => {
     const zipcodeValue = zipcode.value.trim();
 
     // Security questions values - ALWAYS convert to numbers
-    const securityQ1Value = parseInt(security_question1.value) || 0;
-    const securityA1Value = security_answer1.value.trim();
-    const securityQ2Value = parseInt(security_question2.value) || 0;
-    const securityA2Value = security_answer2.value.trim();
-    const securityQ3Value = parseInt(security_question3.value) || 0;
-    const securityA3Value = security_answer3.value.trim();
+    // Security questions values - ALWAYS convert to numbers
+    const security_q1_elem = document.getElementById('security_question1');
+    const security_a1_elem = document.getElementById('security_answer1');
+    const security_q2_elem = document.getElementById('security_question2');
+    const security_a2_elem = document.getElementById('security_answer2');
+    const security_q3_elem = document.getElementById('security_question3');
+    const security_a3_elem = document.getElementById('security_answer3');
+
+    const securityQ1Value = security_q1_elem ? parseInt(security_q1_elem.value) || 0 : 0;
+    const securityA1Value = security_a1_elem ? security_a1_elem.value.trim() : '';
+    const securityQ2Value = security_q2_elem ? parseInt(security_q2_elem.value) || 0 : 0;
+    const securityA2Value = security_a2_elem ? security_a2_elem.value.trim() : '';
+    const securityQ3Value = security_q3_elem ? parseInt(security_q3_elem.value) || 0 : 0;
+    const securityA3Value = security_a3_elem ? security_a3_elem.value.trim() : '';
 
     console.log('=== VALIDATION START ===');
-    console.log('ID Value:', idValue);
-    console.log('Email Value:', emailValue);
-    console.log('Age Value:', ageValue, '(Type:', typeof ageValue, ')');
-    console.log('mnameValue:', mnameValue);
-    console.log('mnameValue empty?', mnameValue === '');
     console.log('Security Q1:', securityQ1Value);
     console.log('Security Q2:', securityQ2Value);
     console.log('Security Q3:', securityQ3Value);
@@ -560,63 +864,38 @@ const validateInputs = () => {
     }
     
     // SECURITY QUESTIONS VALIDATION
-    if (securityQ1Value === 0) {
-        setSecurityError('security_question1', 'Security question 1 is required');
-        isValid = false;
-    } else {
-        setSecuritySuccess('security_question1');
-    }
-
-    if (!securityA1Value) {
-        setSecurityError('security_answer1', 'Answer 1 is required');
-        isValid = false;
-    } else if (securityA1Value.length < 2 || securityA1Value.length > 50) {
-        setSecurityError('security_answer1', 'Answer must be between 2 and 50 characters');
-        isValid = false;
-    } else {
-        setSecuritySuccess('security_answer1');
-    }
-
-    if (securityQ2Value === 0) {
-        setSecurityError('security_question2', 'Security question 2 is required');
-        isValid = false;
-    } else {
-        setSecuritySuccess('security_question2');
-    }
-
-    if (!securityA2Value) {
-        setSecurityError('security_answer2', 'Answer 2 is required');
-        isValid = false;
-    } else if (securityA2Value.length < 2 || securityA2Value.length > 50) {
-        setSecurityError('security_answer2', 'Answer must be between 2 and 50 characters');
-        isValid = false;
-    } else {
-        setSecuritySuccess('security_answer2');
-    }
-
-    if (securityQ3Value === 0) {
-        setSecurityError('security_question3', 'Security question 3 is required');
-        isValid = false;
-    } else {
-        setSecuritySuccess('security_question3');
-    }
-
-    if (!securityA3Value) {
-        setSecurityError('security_answer3', 'Answer 3 is required');
-        isValid = false;
-    } else if (securityA3Value.length < 2 || securityA3Value.length > 50) {
-        setSecurityError('security_answer3', 'Answer must be between 2 and 50 characters');
-        isValid = false;
-    } else {
-        setSecuritySuccess('security_answer3');
+    let questionsSelected = true;
+    
+    // Check individual questions
+    for (let i = 1; i <= 3; i++) {
+        const qVal = i === 1 ? securityQ1Value : (i === 2 ? securityQ2Value : securityQ3Value);
+        const aVal = i === 1 ? securityA1Value : (i === 2 ? securityA2Value : securityA3Value);
+        
+        if (qVal === 0) {
+            console.log(`Validation failed: security question ${i} not selected`);
+            setSecurityError(`security_question${i}`, `Please select security question ${i}`);
+            isValid = false;
+            questionsSelected = false;
+        } else {
+            setSecuritySuccess(`security_question${i}`);
+        }
+        
+        if (!aVal) {
+            console.log(`Validation failed: security answer ${i} empty`);
+            setSecurityError(`security_answer${i}`, `Answer ${i} is required`);
+            isValid = false;
+        } else {
+            setSecuritySuccess(`security_answer${i}`);
+        }
     }
 
     // Check if questions are unique
-    if (securityQ1Value > 0 && securityQ2Value > 0 && securityQ3Value > 0) {
+    if (questionsSelected) {
         if (securityQ1Value === securityQ2Value || 
             securityQ1Value === securityQ3Value || 
             securityQ2Value === securityQ3Value) {
             if (generalError) {
+                console.log('Validation failed: non-unique security questions');
                 generalError.innerText = 'Please select three different security questions';
                 generalError.style.color = '#dc3545';
             }
@@ -626,9 +905,11 @@ const validateInputs = () => {
 
     // AGE VALIDATION
     if(ageValue === 0){
+        console.log('Validation failed: age empty');
         setError(age, 'Age is required');
         isValid = false;
     } else if (ageValue < 18) {
+        console.log('Validation failed: age under 18', ageValue);
         setError(age, 'You must be at least 18 years old to register');
         isValid = false;
     } else {
@@ -727,10 +1008,12 @@ const validateInputs = () => {
 
     // PASSWORD VALIDATION
     if (passwordValue === '') {
+        console.log('Validation failed: password empty');
         setError(password, 'Password is required');
         setError(repassword, 'Password is required');
         isValid = false;
     } else if (passwordValue.length < 8 || passwordValue.length > 30) {
+        console.log('Validation failed: password length', passwordValue.length);
         setError(password, 'Password must be between 8 and 30 characters');
         setError(repassword, 'Password must be between 8 and 30 characters');
         isValid = false;
@@ -741,22 +1024,27 @@ const validateInputs = () => {
         const specialCount = (passwordValue.match(/[!@#$%^&*(),.?":{}|<>]/g) || []).length;
         
         if(uppercaseCount < 2) {
+            console.log('Validation failed: password uppercase count', uppercaseCount);
             setError(password, 'Password must contain at least two (2) uppercase letters');
             setError(repassword, 'Password must contain at least two (2) uppercase letters');
             isValid = false;
         } else if(lowercaseCount < 2) {
+            console.log('Validation failed: password lowercase count', lowercaseCount);
             setError(password, 'Password must contain at least two (2) lowercase letters');
             setError(repassword, 'Password must contain at least two (2) lowercase letters');
             isValid = false;
         } else if(numberCount < 2) {
+            console.log('Validation failed: password number count', numberCount);
             setError(password, 'Password must contain at least two (2) numbers');
             setError(repassword, 'Password must contain at least two (2) numbers');
             isValid = false;
         } else if(specialCount < 2) {
+            console.log('Validation failed: password special count', specialCount);
             setError(password, 'Password must contain at least two (2) special characters');
             setError(repassword, 'Password must contain at least two (2) special characters');
             isValid = false;
         } else if (passwordValue !== repasswordValue) {
+            console.log('Validation failed: passwords mismatch');
             setError(password, 'Passwords do not match');
             setError(repassword, 'Passwords do not match');
             isValid = false;
@@ -768,6 +1056,7 @@ const validateInputs = () => {
     
     // GENDER VALIDATION
     if(genderValue === ''){
+        console.log('Validation failed: gender empty');
         setError(gender, 'Sex is required');
         isValid = false;
     } else {
@@ -776,9 +1065,11 @@ const validateInputs = () => {
 
     // BIRTHDAY VALIDATION
     if (birthdayValue === '') {
+        console.log('Validation failed: birthday empty');
         setError(birthday, 'Birthday is required');
         isValid = false;
     } else if (isNaN(new Date(birthdayValue).getTime())) {
+        console.log('Validation failed: birthday format', birthdayValue);
         setError(birthday, 'Please enter a valid date (YYYY-MM-DD)');
         isValid = false;
     } else {
@@ -794,6 +1085,7 @@ const validateInputs = () => {
         }
 
         if (ageCalcu < 18) {
+            console.log('Validation failed: age calcu under 18', ageCalcu);
             setError(birthday, 'You must be at least 18 years old to register');
             setError(age, 'You must be at least 18 years old to register');
             isValid = false;
@@ -806,18 +1098,23 @@ const validateInputs = () => {
     // EXTENSION NAME VALIDATION
     if (extend_nameValue !== '') {
         if (!/^(Sr|Jr|Senior|Junior|[IVXLCDM]+)$/i.test(extend_nameValue)) {
+            console.log('Validation failed: extension name format');
             setError(extend_name, 'Enter a valid extension name (Sr, Jr, or Roman numerals)');
             isValid = false;
         } else if (extend_nameValue.length <= 0 || extend_nameValue.length > 30) {
+            console.log('Validation failed: extension name length');
             setError(extend_name, 'Extension name must be between 0 and 30 characters');
             isValid = false;
-        } else if(extend_nameValue.toLowerCase() === 'sr' || extend_nameValue.toLowerCase() === 'jr') {
+        } else if(extend_nameValue === 'sr' || extend_nameValue === 'jr') {
+            console.log('Validation failed: extension name capitalization');
             setError(extend_name, 'Sr and Jr must be capitalized');
             isValid = false;
         } else if(!/^[IVXLCDM]+$/i.test(extend_nameValue) && /[IVXLCDM]/i.test(extend_nameValue)) {
+            console.log('Validation failed: extension name Roman numeral');
             setError(extend_name, 'Invalid Roman numeral format');
             isValid = false;
         } else if(/\s/.test(extend_nameValue)) {
+            console.log('Validation failed: extension name spaces');
             setError(extend_name, 'No spaces allowed');
             isValid = false;
         } else {
@@ -829,15 +1126,19 @@ const validateInputs = () => {
     
     // LAST NAME VALIDATION
     if (lnameValue === '') {
+        console.log('Validation failed: last name empty');
         setError(lname, 'Last Name is required');
         isValid = false;
     } else if (lnameValue.length <= 1 || lnameValue.length >= 30) {
+        console.log('Validation failed: last name length', lnameValue.length);
         setError(lname, 'Last Name must be between 1 and 30 characters');
         isValid = false;
     } else if (!/^[A-Za-z\s]+$/.test(lnameValue)) {
+        console.log('Validation failed: last name format', lnameValue);
         setError(lname, 'Last Name must contain only letters');
         isValid = false;
     } else if (/(.)\1{2,}/.test(lnameValue)) {
+        console.log('Validation failed: last name consecutive letters', lnameValue);
         setError(lname, 'Three consecutive identical letters are not allowed');
         isValid = false;
     } else {
@@ -846,13 +1147,16 @@ const validateInputs = () => {
 
     // MIDDLE NAME VALIDATION - FIXED
     if (mnameValue !== '') {
-        if (mnameValue.length <= 1 || mnameValue.length >= 30) {
+        if (mnameValue.length < 1 || mnameValue.length >= 30) {
+            console.log('Validation failed: middle name length', mnameValue.length);
             setError(mname, 'Middle Name must be between 1 and 30 characters');
             isValid = false;
         } else if (!/^[A-Za-z\s]+$/.test(mnameValue)) {
+            console.log('Validation failed: middle name format', mnameValue);
             setError(mname, 'Middle Name must contain only letters');
             isValid = false;
         } else if (/([a-zA-Z])\1\1/.test(mnameValue)) {
+            console.log('Validation failed: middle name consecutive letters', mnameValue);
             setError(mname, 'Three consecutive identical letters are not allowed');
             isValid = false;
         } else {
@@ -865,15 +1169,19 @@ const validateInputs = () => {
 
     // FIRST NAME VALIDATION
     if(fnameValue === ''){
+        console.log('Validation failed: first name empty');
         setError(fname, 'First Name is required');
         isValid = false;
     } else if(fnameValue.length <= 1 || fnameValue.length >= 30) {
+        console.log('Validation failed: first name length', fnameValue.length);
         setError(fname, 'First Name must be between 1 and 30 characters');
         isValid = false;
     } else if(!/^[A-Za-z\s]+$/.test(fnameValue)) {
+        console.log('Validation failed: first name format', fnameValue);
         setError(fname, 'First Name must contain only letters');
         isValid = false;
     } else if(/(.)\1\1/.test(fnameValue)) {
+        console.log('Validation failed: first name consecutive letters', fnameValue);
         setError(fname, 'Three consecutive identical letters are not allowed');
         isValid = false;
     } else {
@@ -882,21 +1190,27 @@ const validateInputs = () => {
 
     // USERNAME VALIDATION
     if(usernameValue === '') {
+        console.log('Validation failed: username empty');
         setError(username, 'Username is required');     
         isValid = false;
-    } else if(usernameValue.length <= 1 || usernameValue.length >= 15) {
-        setError(username, 'Username must be between 1 and 15 characters');
+    } else if(usernameValue.length < 5 || usernameValue.length > 20) {
+        console.log('Validation failed: username length', usernameValue.length);
+        setError(username, 'Username must be between 5 and 20 characters');
         isValid = false;
     } else if(/(.)\1\1/.test(usernameValue)) {
+        console.log('Validation failed: username consecutive chars');
         setError(username, 'Three consecutive identical characters are not allowed');
         isValid = false;
     } else if(/[A-Z]/.test(usernameValue)) {
+        console.log('Validation failed: username capital letters');
         setError(username, 'No capital letters allowed');
         isValid = false;
     } else if(/\s/.test(usernameValue)) {
+        console.log('Validation failed: username spaces');
         setError(username, 'No spaces allowed');
         isValid = false;
     } else if(!/^(?![0-9])/.test(usernameValue)) {
+        console.log('Validation failed: username starts with number');
         setError(username, 'Username cannot start with a number');
         isValid = false;
     } else {
@@ -905,9 +1219,11 @@ const validateInputs = () => {
 
     // CONTACT NUMBER VALIDATION
     if(contact_numberValue === '') {
+        console.log('Validation failed: contact number empty');
         setError(contact_number, 'Contact Number is required');
         isValid = false;
     } else if(!/^(09\d{9}|(\+639)\d{9})$/.test(contact_numberValue)) {
+        console.log('Validation failed: contact number format', contact_numberValue);
         setError(contact_number, 'Please enter a valid contact number');
         isValid = false;
     } else {
@@ -916,9 +1232,11 @@ const validateInputs = () => {
 
     // EMAIL VALIDATION
     if(emailValue === '') {
+        console.log('Validation failed: email empty');
         setError(email, 'Email is required');
         isValid = false;
     } else if(!/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailValue)) {
+        console.log('Validation failed: email format', emailValue);
         setError(email, 'Please enter a valid email address');
         isValid = false;
     } else {
@@ -927,15 +1245,19 @@ const validateInputs = () => {
 
     // ID VALIDATION
     if(idValue === '') {
+        console.log('Validation failed: ID empty');
         setError(id, 'ID Number is required');
         isValid = false;
     } else if (idValue.length < 6 || idValue.length > 11) {
+        console.log('Validation failed: ID length', idValue.length);
         setError(id, 'ID Number must be between 6 and 11 characters');
         isValid = false;
     } else if (!/^\d{4}-\d{4}$/.test(idValue)) {
+        console.log('Validation failed: ID format', idValue);
         setError(id, 'ID Number must be in the format xxxx-xxxx');
         isValid = false;
     } else if (/\s/.test(idValue)) {
+        console.log('Validation failed: ID spaces');
         setError(id, 'ID Number cannot contain spaces');
         isValid = false;
     } else {

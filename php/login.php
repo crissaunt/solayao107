@@ -140,9 +140,20 @@ if (empty($username) || empty($password)) {
 }
 
 try {
+    // Helper to log logins
+    function logLoginAttempt($conn, $user_id, $username, $success) {
+        try {
+            $ip = $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $stmt = $conn->prepare("INSERT INTO login_attempts (user_id, username, ip_address, success) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$user_id, $username, $ip, $success ? 1 : 0]);
+        } catch (PDOException $e) {
+            error_log("Failed to log attempt: " . $e->getMessage());
+        }
+    }
+
     // ── Only the users table ──────────────────────────────────────────────────
     $stmt = $conn->prepare(
-        'SELECT user_id, username, password, first_name, last_name, role_id
+        'SELECT user_id, username, password, first_name, last_name, role_id, is_active, last_login
          FROM   users
          WHERE  username = :username
          LIMIT  1'
@@ -154,11 +165,29 @@ try {
 
         // Block admins silently — show the same generic error as a wrong password
         // (avoids leaking that the username belongs to an admin account)
-        if (($user['role_id'] ?? 3) == 1 || ($user['role_id'] ?? 3) == 2) {
+        if (($user['role_id'] ?? 3) == 1 || (($user['role_id'] ?? 3) == 2)) {
+            logLoginAttempt($conn, $user['user_id'], $username, false);
             echo json_encode([
                 'success' => false,
                 'message' => 'Incorrect username or password.'
             ]);
+            exit();
+        }
+
+        // Block inactive users (pending OR deactivated)
+        if (!$user['is_active']) {
+            logLoginAttempt($conn, $user['user_id'], $username, false);
+            if (empty($user['last_login'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Your account registration is currently pending admin approval.'
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Your account has been deactivated. Please contact support.'
+                ]);
+            }
             exit();
         }
 
@@ -170,6 +199,8 @@ try {
         $_SESSION['logged_in'] = true;
         $_SESSION['role']      = 'User';
 
+        logLoginAttempt($conn, $user['user_id'], $username, true);
+
         // Update last_login — still only the users table
         $upd = $conn->prepare('UPDATE users SET last_login = NOW() WHERE user_id = :id');
         $upd->execute([':id' => $user['user_id']]);
@@ -178,13 +209,30 @@ try {
               $_SESSION['lockout_duration'], $_SESSION['max_attempts']);
         session_regenerate_id(true);
 
-        echo json_encode(['success' => true, 'message' => 'Login successful. Redirecting...']);
+        // Check if user has security questions set up
+        $q_check = $conn->prepare("SELECT COUNT(*) FROM user_security_answers WHERE user_id = :uid");
+        $q_check->execute([':uid' => $user['user_id']]);
+        $has_questions = $q_check->fetchColumn() > 0;
+
+        // Force password change if default password is used
+        $is_default_password = ($password === 'FFll24()');
+        if ($is_default_password) {
+            $_SESSION['must_change_password'] = true;
+        }
+
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Login successful. Redirecting...',
+            'redirect' => ($has_questions && !$is_default_password) ? 'home.php' : 'complete-setup.php'
+        ]);
         exit();
 
     } elseif ($user) {
         // ── Wrong password ────────────────────────────────────────────────────
         $_SESSION['login_attempts']++;
         $left = $_SESSION['max_attempts'] - $_SESSION['login_attempts'];
+
+        logLoginAttempt($conn, $user['user_id'], $username, false);
 
         if ($_SESSION['login_attempts'] >= 9) {
             $_SESSION['lockout_duration']    = 60;
@@ -204,6 +252,8 @@ try {
         // ── Username not found ────────────────────────────────────────────────
         $_SESSION['login_attempts']++;
         $left = $_SESSION['max_attempts'] - $_SESSION['login_attempts'];
+
+        logLoginAttempt($conn, null, $username, false);
 
         if ($_SESSION['login_attempts'] >= 9) {
             $_SESSION['lockout_duration']    = 60;

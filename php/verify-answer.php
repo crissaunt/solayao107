@@ -13,15 +13,14 @@ $response = ['success' => false, 'message' => '', 'lock_time' => 0];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     
-    if (empty($data['user_id']) || empty($data['question_id']) || empty($data['answer'])) {
-        $response['message'] = 'All fields are required';
+    if (empty($data['user_id']) || empty($data['answers'])) {
+        $response['message'] = 'All security answers are required';
         echo json_encode($response);
         exit();
     }
     
     $userId = intval($data['user_id']);
-    $questionId = intval($data['question_id']);
-    $answer = trim($data['answer']);
+    $answers = $data['answers'];
     
     try {
         $resetLogic = new PasswordReset($conn);
@@ -40,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lockInfo = $lockCheckStmt->fetch();
         
         if ($lockInfo) {
-            // Calculate remaining lock time in seconds
             $remainingLockStmt = $conn->prepare("
                 SELECT EXTRACT(EPOCH FROM (lockout_until - NOW())) as remaining_seconds
                 FROM password_reset_logs 
@@ -58,6 +56,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         
+        // Get user email
+        $userStmt = $conn->prepare("SELECT email FROM users WHERE user_id = :user_id");
+        $userStmt->execute([':user_id' => $userId]);
+        $user = $userStmt->fetch();
+        
+        if (!$user) {
+            $response['message'] = 'User not found';
+            echo json_encode($response);
+            exit();
+        }
+
         // Check recent failed attempts
         $attemptsStmt = $conn->prepare("
             SELECT COUNT(*) as failed_attempts
@@ -70,11 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $attemptsStmt->execute([':user_id' => $userId]);
         $attempts = $attemptsStmt->fetch();
         
-        $maxAttempts = 3; // Maximum attempts before lockout
-        $lockoutMinutes = 30; // Lockout duration in minutes
+        $maxAttempts = 3; 
+        $lockoutMinutes = 30; 
         
         if ($attempts['failed_attempts'] >= $maxAttempts) {
-            // Set lockout until time
             $lockoutUntil = date('Y-m-d H:i:s', strtotime("+{$lockoutMinutes} minutes"));
             
             $lockStmt = $conn->prepare("
@@ -82,11 +90,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (user_id, email, attempt_type, ip_address, user_agent, attempt_time, success, lockout_until)
                 VALUES (:user_id, :email, 'security_answer', :ip, :agent, NOW(), false, :lockout_until)
             ");
-            
-            // Get user email
-            $emailStmt = $conn->prepare("SELECT email FROM users WHERE user_id = :user_id");
-            $emailStmt->execute([':user_id' => $userId]);
-            $user = $emailStmt->fetch();
             
             $lockStmt->execute([
                 ':user_id' => $userId,
@@ -97,16 +100,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $response['message'] = 'Too many failed attempts. Account locked for ' . $lockoutMinutes . ' minutes.';
-            $response['lock_time'] = $lockoutMinutes * 60; // Convert to seconds
+            $response['lock_time'] = $lockoutMinutes * 60;
             echo json_encode($response);
             exit();
         }
         
-        // Verify the answer
-        $verifyResult = $resetLogic->verifyAnswer($userId, $questionId, $answer);
+        // Verify all answers
+        $verifyResult = $resetLogic->verifyAllAnswers($userId, $answers);
         
         if ($verifyResult['success']) {
-            // Log successful attempt
             $logStmt = $conn->prepare("
                 INSERT INTO password_reset_logs 
                 (user_id, email, attempt_type, ip_address, user_agent, attempt_time, success)
@@ -121,9 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $response['success'] = true;
-            $response['message'] = 'Answer verified successfully';
+            $response['message'] = 'Answers verified successfully';
         } else {
-            // Log failed attempt
             $logStmt = $conn->prepare("
                 INSERT INTO password_reset_logs 
                 (user_id, email, attempt_type, ip_address, user_agent, attempt_time, success)

@@ -14,37 +14,6 @@ function logLogout($conn, $user_id, $username) {
         // Get user agent
         $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
         
-        // Log to activity_logs table
-        $activity_query = "INSERT INTO activity_logs (table_name, action, performed_by, ip_address, user_agent, created_at) 
-                          VALUES ('users', 'LOGOUT', :user_id, :ip_address, :user_agent, NOW())";
-        $activity_stmt = $conn->prepare($activity_query);
-        $activity_stmt->execute([
-            ':user_id' => $user_id,
-            ':ip_address' => $ip_address,
-            ':user_agent' => $user_agent
-        ]);
-        
-        // Log to admin_activity_logs if user is admin (role_id 1 or 2)
-        if ($user_id) {
-            // Get user role for logging check
-            $role_check = $conn->prepare("SELECT role_id FROM users WHERE user_id = :user_id");
-            $role_check->execute([':user_id' => $user_id]);
-            $user_role_id = $role_check->fetchColumn();
-
-            if ($user_role_id == 1 || $user_role_id == 2) {
-                $admin_activity_query = "INSERT INTO admin_activity_logs 
-                                        (admin_id, username, action_type, table_name, ip_address, user_agent, endpoint, method, status_code, created_at) 
-                                        VALUES (:admin_id, :username, 'LOGOUT', 'users', :ip_address, :user_agent, '/logout.php', 'GET', 200, NOW())";
-                $admin_activity_stmt = $conn->prepare($admin_activity_query);
-                $admin_activity_stmt->execute([
-                    ':admin_id' => $user_id, // admin_id is now user_id
-                    ':username' => $username,
-                    ':ip_address' => $ip_address,
-                    ':user_agent' => $user_agent
-                ]);
-            }
-        }
-        
         // Log to system_activity_logs
         $system_log_query = "INSERT INTO system_activity_logs 
                             (user_id, actor_type, action, category, description, ip_address, user_agent, created_at) 

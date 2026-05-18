@@ -20,11 +20,93 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Registration - Plants.🌻</title>
     <link rel="stylesheet" href="../assets/css/register.css">
-    <!-- <link href="../assets/css/output.css" rel="stylesheet"> -->
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        .form-step {
+            display: none;
+        }
+        .form-step.active {
+            display: block;
+        }
+        .step-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 25px;
+            gap: 15px;
+            padding-bottom: 10px;
+        }
+        .btn-next, .btn-back, .btn-create-account {
+            padding: 10px 2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            font-size: 12px;
+            border: none;
+        }
+        .btn-next {
+            background-color: #205d1c;
+            color: white;
+            margin-left: auto;
+        }
+        .btn-back {
+            background-color: #e0e0e0;
+            color: #444;
+        }
+        .btn-create-account {
+            background-color: #205d1c;
+            color: white;
+            flex-grow: 1;
+        }
+        .btn-next:hover, .btn-create-account:hover {
+            background-color: #388e3c;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .btn-back:hover {
+            background-color: #d0d0d0;
+        }
+        .security-questions-container {
+            flex-direction: row;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+            margin-top: 10px;
+        }
+        .form-header {
+            margin-top: 5px;
+        }
+        .form-header:first-child {
+            margin-top: 0;
+        }
+        .ans-input-wrapper {
+            position: relative;
+            width: 100%;
+            margin-top: 12px;
+        }
+        .ans-input-wrapper input {
+            margin-top: 0 !important;
+            width: 100% !important;
+            padding-right: 35px !important;
+        }
+        .ans-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #666;
+            font-size: 14px;
+            z-index: 10;
+            transition: color 0.3s ease;
+        }
+        .ans-toggle:hover {
+            color: #2e7d32;
+        }
+    </style>
 </head>
 
 <body>
@@ -43,223 +125,180 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     <main class=" wrapper flex justify-center p-2 bg-cover" style="background-image: url('../images/bg-plants.jpg');">
         <div class="box-body">
             <div class="box-form">
-                <header class="form-header">Personal Information</header>
-                <form action="" method="POST" id="form">
-                    <!-- personal information -->
-                    <div class="column">
-                        <div class="input-box">
-                            <label for="id">Id number:</label>
-                            <input type="text" id="id" name="id" placeholder="Ex. 0000-0000">
-                            <div class="error"></div>
-                        </div>
-                        <div class="input-box">
-                            <label for="username">Username:</label>
-                            <input type="text" id="username" name="username" placeholder="Ex. alex24">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="email">Email:</label>
-                            <input type="text" id="email" name="email" placeholder="Ex. alex.ligalig@company.com">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="contact_number">Contact Number:</label>
-                            <input type="text" id="contact_number" name="contact_number" placeholder="Ex. 09123456789">
-                            <div class="error"></div>
-                        </div>
-                    </div>
-
-                    <div class="column">
-                        <div class="input-box">
-                            <label for="fname">First Name:</label>
-                            <input type="text" id="fname" name="fname" placeholder="Ex. Alex">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box ">
-                            <label for="mname" style="display: flex;">Middle Name(<p
-                                    style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
-                            <input type="text" id="mname" name="mname" placeholder="Ex. Dela Cruz">
-                            <div class="error"></div>
-                        </div>
-
-
-                        <div class="input-box">
-                            <label for="lname">Last Name:</label>
-                            <input type="text" name="lname" id="lname" placeholder="Ex. Ligalig">
-                            <div class="error"></div>
-                        </div>
-                        <div class="input-box">
-                            <label for="extend_name" style="display: flex;">Extension Name(<p
-                                    style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
-                            <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr.">
-                            <div class="error"></div>
-                        </div>
-                    </div>
-
-                    <div class="column">
-
-                        <div class="input-box">
-                            <label for="birthday">Birthday</label>
-                            <input type="date" id="birthday" name="birthday" onchange="calculateAge()">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="age">Age</label>
-                            <input type="text" id="age" name="age" oninput="calculateBirthdate()"
-                                placeholder="Enter your birthdate ">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="gender">Sex</label>
-                            <select id="gender" name="sex" type="sex">
-                                <option value="" hidden>Select Your Sex</option>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                            </select>
-                            <div class="error"></div>
-                        </div>
-                    </div>
-
-                    <Header class="form-header security-header">Security Questions</Header>
-                    <!-- Add this hidden div for general security questions error -->
-
-                    <div class="security-questions"
-                        style="display: flex; gap: 14px;width: 100%;  justify-content: center;">
+                <form action="" method="POST" id="form" novalidate>
+                    
+                    <!-- STEP 1: PERSONAL & CONTACT INFO -->
+                    <div class="form-step active" id="step-1">
+                        <header class="form-header">Account Information</header>
                         <div class="column">
-                            <div class="input-box" style="gap: 2px;">
-                                <div>
-                                    <label for="security_question1">Security Question 1:</label>
-                                    <select style="width: 100%;" id="security_question1" name="security_question1">
-                                        <option value="" selected disabled>Select a question</option>
-                                    </select>
-                                    <div class="error" id="security_question1_error"></div>
-                                </div>
-                                <div>
-                                    <input type="text" id="security_answer1" name="security_answer1"
-                                        placeholder="Enter your answer" style="width: 100%;">
-                                    <div class="error" id="security_answer1_error"></div>
-                                </div>
+                            <div class="input-box">
+                                <label for="id">Id number:</label>
+                                <input type="text" id="id" name="id" placeholder="Ex. 0000-0000">
+                                <div class="error"></div>
+                            </div>
+                            <div class="input-box">
+                                <label for="username">Username:</label>
+                                <input type="text" id="username" name="username" placeholder="Ex. alex24">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box">
+                                <label for="email">Email:</label>
+                                <input type="text" id="email" name="email" placeholder="Ex. alex.ligalig@company.com">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box">
+                                <label for="contact_number">Contact Number:</label>
+                                <input type="text" id="contact_number" name="contact_number" placeholder="Ex. 09123456789">
+                                <div class="error"></div>
                             </div>
                         </div>
 
                         <div class="column">
-                            <div class="input-box" style="gap: 2px;">
-                                <div>
-                                    <label for="security_question2">Security Question 2:</label>
-                                    <select style="width: 100%;" id="security_question2" name="security_question2">
-                                        <option value="" selected disabled>Select a question</option>
-                                    </select>
-                                    <div class="error" id="security_question2_error"></div>
-                                </div>
-                                <div>
-                                    <input type="text" id="security_answer2" name="security_answer2"
-                                        placeholder="Enter your answer" style="width: 100%;">
-                                    <div class="error" id="security_answer2_error"></div>
-                                </div>
+                            <div class="input-box">
+                                <label for="fname">First Name:</label>
+                                <input type="text" id="fname" name="fname" placeholder="Ex. Alex">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box ">
+                                <label for="mname" style="display: flex;">Middle Name(<p
+                                        style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
+                                <input type="text" id="mname" name="mname" placeholder="Ex. Dela Cruz">
+                                <div class="error"></div>
+                            </div>
+
+
+                            <div class="input-box">
+                                <label for="lname">Last Name:</label>
+                                <input type="text" name="lname" id="lname" placeholder="Ex. Ligalig">
+                                <div class="error"></div>
+                            </div>
+                            <div class="input-box">
+                                <label for="extend_name" style="display: flex;">Extension Name(<p
+                                        style="color: rgb(214, 51, 51);font-size: 12px;">Optional</p>):</label>
+                                <input type="text" id="extend_name" name="extend_name" placeholder="Ex. Jr., Sr.">
+                                <div class="error"></div>
                             </div>
                         </div>
 
                         <div class="column">
-                            <div class="input-box" style="gap: 2px;">
-                                <div>
-                                    <label for="security_question3">Security Question 3:</label>
-                                    <select style="width: 100%;" id="security_question3" name="security_question3">
-                                        <option value="" selected disabled>Select a question</option>
-                                    </select>
-                                    <div class="error" id="security_question3_error"></div>
-                                </div>
-                                <div>
-                                    <input type="text" id="security_answer3" name="security_answer3"
-                                        placeholder="Enter your answer" style="width: 100%;">
-                                    <div class="error" id="security_answer3_error"></div>
-                                </div>
+                            <div class="input-box">
+                                <label for="birthday">Birthday</label>
+                                <input type="date" id="birthday" name="birthday" onchange="calculateAge()">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box">
+                                <label for="age">Age</label>
+                                <input type="text" id="age" name="age" oninput="calculateBirthdate()"
+                                    placeholder="Enter your birthdate ">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box">
+                                <label for="gender">Sex</label>
+                                <select id="gender" name="sex">
+                                    <option value="" hidden>Select Your Sex</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                </select>
+                                <div class="error"></div>
                             </div>
                         </div>
-                    </div>
+
+                        <div class="column">
+                            <!-- Password input with strength meter -->
+                            <div class="input-box">
+                                <label for="password">Password:</label>
+                                <input type="password" id="password" name="password" autocomplete="new-password"
+                                    placeholder="Enter your password">
+                                <div class="strength-meter" id="strength-meter"></div>
+                                <span class="strength-text" id="strength-text">Password Strength: </span>
+                                <div class="error"></div>
+                            </div>
+
+                            <!-- Toggle password visibility -->
+                            <div class="" style="position: relative;">
+                                <img id="togglePassword1" src="../images/eye-icon.png"
+                                    style="  position:absolute ;cursor: pointer; width: 20px; right: 23px;top:30px"
+                                    class="fas1" onclick="togglePasswordVisibility1('password')">
+                            </div>
 
 
-                    <div class="column">
-                        <!-- Password input with strength meter -->
-                        <div class="input-box">
-                            <label for="password">Password:</label>
-                            <input type="password" id="password" name="password" autocomplete="new-password"
-                                placeholder="Enter your password">
-                            <div class="strength-meter" id="strength-meter"></div>
-                            <span class="strength-text" id="strength-text">Password Strength: </span>
-                            <div class="error"></div>
+                            <!-- Re-enter password input -->
+                            <div class="input-box">
+                                <label for="repassword">Enter Password again:</label>
+                                <input type="password" id="repassword" name="repassword" autocomplete="new-password"
+                                    placeholder="Enter your password again">
+                                <div class="error"></div>
+                            </div>
                         </div>
 
-                        <!-- Toggle password visibility -->
-                        <div class="" style="position: relative;">
-                            <img id="togglePassword1" src="../images/eye-icon.png"
-                                style="  position:absolute ;cursor: pointer; width: 20px; right: 23px;top:30px"
-                                class="fas1" onclick="togglePasswordVisibility1('password')">
+                        <Header class="form-header address-header">Personal Address</Header>
+                        <div class="column">
+                            <div class="input-box">
+                                <label for="street_purok">Purok/Street:</label>
+                                <input type="text" name="street_purok" id="street_purok">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box">
+                                <label for="barangay">Barangay:</label>
+                                <input type="text" name="barangay" id="barangay">
+                                <div class="error"></div>
+                            </div>
+
+                            <div class="input-box">
+                                <label for="city_municipal">City/Municipal:</label>
+                                <input type="text" name="city_municipal" id="city_municipal">
+                                <div class="error"></div>
+                            </div>
                         </div>
 
+                        <div class="column">
+                            <div class="input-box">
+                                <label for="province">Province</label>
+                                <input type="text" name="province" id="province">
+                                <div class="error"></div>
+                            </div>
+                            <div class="input-box">
+                                <label for="country">Country</label>
+                                <input type="text" name="country" id="country">
+                                <div class="error"></div>
+                            </div>
 
-                        <!-- Re-enter password input -->
-                        <div class="input-box">
-                            <label for="repassword">Enter Password again:</label>
-                            <input type="password" id="repassword" name="repassword" autocomplete="new-password"
-                                placeholder="Enter your password again">
-                            <div class="error"></div>
+                            <div class="input-box">
+                                <label for="zipcode">Zip Code</label>
+                                <input type="text" id="zipcode" name="zipcode" placeholder="Ex. 8000">
+
+                                <div class="error"></div>
+                            </div>
                         </div>
 
-
-
-                    </div>
-
-
-
-                    <!-- address -->
-
-                    <Header class="form-header address-header">Personal Address</Header>
-                    <div class="column">
-                        <div class="input-box">
-                            <label for="street_purok">Purok/Street:</label>
-                            <input type="text" name="street_purok" id="street_purok">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="barangay">Barangay:</label>
-                            <input type="text" name="barangay" id="barangay">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="city_municipal">City/Municipal:</label>
-                            <input type="text" name="city_municipal" id="city_municipal">
-                            <div class="error"></div>
-                        </div>
-                    </div>
-
-                    <div class="column">
-                        <div class="input-box">
-                            <label for="province">Province</label>
-                            <input type="text" name="province" id="province">
-                            <div class="error"></div>
-                        </div>
-                        <div class="input-box">
-                            <label for="country">Country</label>
-                            <input type="text" name="country" id="country">
-                            <div class="error"></div>
-                        </div>
-
-                        <div class="input-box">
-                            <label for="zipcode">Zip Code</label>
-                            <input type="text" id="zipcode" name="zipcode" placeholder="Ex. 8000">
-
-                            <div class="error"></div>
+                        <div class="step-buttons">
+                            <button type="button" class="btn-next" id="next-to-step-2">Next: Security Questions <i class="fas fa-arrow-right"></i></button>
                         </div>
                     </div>
-                    <div class="btn-create-account-container">
-                        <button type="submit" name="submit" class="btn-create-account">Create an account</button>
+
+                    <!-- STEP 2: SECURITY QUESTIONS -->
+                    <div class="form-step" id="step-2">
+                        <Header class="form-header security-header">Security Questions</Header>
+                        <p style="text-align: center; margin-bottom: 20px; color: #666; font-size: 14px;">These questions will help you recover your account if you forget your password.</p>
+                        
+                        <div class="security-questions-container">
+                            <div id="security-questions-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; width: 100%;">
+                                <!-- Questions will be dynamically loaded here by register.js -->
+                            </div>
+                        </div>
+
+                        <div id="security_general_error" class="error" style="text-align: center; margin-top: 10px;"></div>
+
+                        <div class="step-buttons">
+                            <button type="button" class="btn-back" id="back-to-step-1"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button type="submit" name="submit" class="btn-create-account">Create Account <i class="fas fa-user-plus"></i></button>
+                        </div>
                     </div>
 
                 </form>
@@ -267,6 +306,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 <div class="already-account">
                     <p>Already have Account?<a href="login.php"> Click to Login</a></p>
                 </div>
+            </div>
+        </div>
     </main>
 
 
@@ -295,21 +336,84 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 .then(data => {
                     if (data.status === 'success') {
                         const questions = data.questions;
-                        const select1 = document.getElementById('security_question1');
-                        const select2 = document.getElementById('security_question2');
-                        const select3 = document.getElementById('security_question3');
+                        const container = document.getElementById('security-questions-list');
+                        container.innerHTML = ''; // Clear loading message
 
-                        // Clear existing options except the first one
-                        while (select1.options.length > 1) select1.remove(1);
-                        while (select2.options.length > 1) select2.remove(1);
-                        while (select3.options.length > 1) select3.remove(1);
+                        // Create 3 question slots
+                        for (let i = 0; i < 3; i++) {
+                            const group = document.createElement('div');
+                            group.className = 'input-box';
+                            group.style.background = '#fff';
+                            group.style.padding = '15px';
+                            group.style.borderRadius = '8px';
+                            group.style.boxShadow = '0 2px 5px rgba(0,0,0,0.05)';
+                            group.style.border = '1px solid #eee';
 
-                        // Add questions to all dropdowns
-                        questions.forEach(question => {
-                            select1.add(new Option(question.question_text, question.question_id));
-                            select2.add(new Option(question.question_text, question.question_id));
-                            select3.add(new Option(question.question_text, question.question_id));
-                        });
+                            const label = document.createElement('label');
+                            label.innerHTML = `<span style="color: #2e7d32; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Question ${i+1}</span>`;
+                            
+                            // Select input for question
+                            const qSelect = document.createElement('select');
+                            qSelect.name = `security_question${i+1}`;
+                            qSelect.id = `security_question${i+1}`;
+                            qSelect.style.marginTop = '10px';
+
+                            // Default option
+                            const defaultOpt = document.createElement('option');
+                            defaultOpt.value = '';
+                            defaultOpt.text = 'Select a security question...';
+                            defaultOpt.hidden = true;
+                            qSelect.appendChild(defaultOpt);
+
+                            // Populate select with all questions
+                            questions.forEach(q => {
+                                const opt = document.createElement('option');
+                                opt.value = q.question_id;
+                                opt.text = q.question_text;
+                                qSelect.appendChild(opt);
+                            });
+
+                            const ansWrapper = document.createElement('div');
+                            ansWrapper.className = 'ans-input-wrapper';
+
+                            const ansInput = document.createElement('input');
+                            ansInput.type = 'password';
+                            ansInput.name = `security_answer${i+1}`;
+                            ansInput.id = `security_answer${i+1}`;
+                            ansInput.placeholder = 'Your answer...';
+
+                            const toggleIcon = document.createElement('i');
+                            toggleIcon.className = 'fas fa-eye ans-toggle';
+                            toggleIcon.onclick = function() {
+                                if (ansInput.type === 'password') {
+                                    ansInput.type = 'text';
+                                    this.className = 'fas fa-eye-slash ans-toggle';
+                                } else {
+                                    ansInput.type = 'password';
+                                    this.className = 'fas fa-eye ans-toggle';
+                                }
+                            };
+
+                            ansWrapper.appendChild(ansInput);
+                            ansWrapper.appendChild(toggleIcon);
+
+                            const qErrorDiv = document.createElement('div');
+                            qErrorDiv.className = 'error';
+                            qErrorDiv.id = `security_question${i+1}_error`;
+                            qErrorDiv.style.marginTop = '5px';
+
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error';
+                            errorDiv.id = `security_answer${i+1}_error`;
+                            errorDiv.style.marginTop = '5px';
+
+                            group.appendChild(label);
+                            group.appendChild(qSelect);
+                            group.appendChild(qErrorDiv);
+                            group.appendChild(ansWrapper);
+                            group.appendChild(errorDiv);
+                            container.appendChild(group);
+                        }
                     }
                 })
                 .catch(error => console.error('Error loading security questions:', error));
@@ -499,9 +603,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Hash password
         $hashed_password = password_hash($password, PASSWORD_BCRYPT);
         
-        // Insert new user with role_id = 3 (regular user)
+        // Insert new user with role_id = 3 (regular user) and is_active = false (pending approval)
         $sql_insert = "INSERT INTO users (id_number, email, age, contact_number, username, first_name, middle_name, last_name, extension_name, birthday, sex, password, street_purok, barangay, city_municipal, province, country, zipcode, role_id, is_active) 
-                      VALUES (:id_number, :email, :age, :contact_number, :username, :first_name, :middle_name, :last_name, :extension_name, :birthday, :sex, :password, :street_purok, :barangay, :city_municipal, :province, :country, :zipcode, 3, true)";
+                      VALUES (:id_number, :email, :age, :contact_number, :username, :first_name, :middle_name, :last_name, :extension_name, :birthday, :sex, :password, :street_purok, :barangay, :city_municipal, :province, :country, :zipcode, 3, false)";
         
         error_log("Executing insert with age: " . $age);
         
@@ -583,10 +687,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             $new_user_data = [
                 'user_id' => $user_id,
+                'id_number' => $id_number,
                 'username' => $username,
                 'email' => $email,
+                'contact_number' => $contact_number,
                 'first_name' => $first_name,
+                'middle_name' => $middle_name,
                 'last_name' => $last_name,
+                'extension_name' => $extension_name,
+                'birthday' => $birthday,
+                'age' => $age,
+                'sex' => $sex,
+                'street_purok' => $street_purok,
+                'barangay' => $barangay,
+                'city_municipal' => $city_municipal,
+                'province' => $province,
+                'country' => $country,
+                'zipcode' => $zipcode,
                 'role_id' => 3
             ];
             
@@ -611,7 +728,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         error_log("=== REGISTRATION SUCCESS === User ID: " . $user_id . ", Username: " . $username);
         
-        echo json_encode(['status' => 'success', 'message' => 'Your Account is Successfully Created']);
+        echo json_encode(['status' => 'success', 'message' => 'Your Account is Successfully Created. Please wait for an Admin to approve your registration.']);
         
     } catch(PDOException $e) {
         if ($conn->inTransaction()) {

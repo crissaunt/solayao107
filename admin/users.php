@@ -2,6 +2,7 @@
 // users.php
 session_start();
 require_once __DIR__ . '/../php/db_connection.php';
+require_once __DIR__ . '/../php/email-config.php';
 
 // Check if user is logged in and has admin access
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -29,6 +30,17 @@ $offset = ($page - 1) * $limit;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $role_filter = isset($_GET['role']) ? (int)$_GET['role'] : 0;
+$sex_filter = isset($_GET['sex']) ? $_GET['sex'] : 'all';
+$barangay_filter = isset($_GET['barangay']) ? $_GET['barangay'] : 'all';
+
+// Get unique barangays for filter
+$barangays = [];
+try {
+    $b_stmt = $conn->query("SELECT DISTINCT barangay FROM users WHERE barangay IS NOT NULL AND barangay != '' ORDER BY barangay");
+    $barangays = $b_stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    error_log("Error fetching barangays: " . $e->getMessage());
+}
 
 // Get admin role IDs to exclude
 $admin_roles = [];
@@ -62,10 +74,12 @@ try {
     error_log("Error fetching roles: " . $e->getMessage());
 }
 
-// Handle Add User (keep existing code)
+// Handle Add User
 if (isset($_POST['add_user'])) {
+    $is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
+    $password = $_POST['password'] ?? 'abcd1234';
     $email = $_POST['email'] ?? '';
     $id_number = $_POST['id_number'] ?? '';
     $first_name = $_POST['first_name'] ?? '';
@@ -82,100 +96,104 @@ if (isset($_POST['add_user'])) {
     $province = $_POST['province'] ?? '';
     $country = $_POST['country'] ?? 'Philippines';
     $zipcode = $_POST['zipcode'] ?? '';
-    $role_id = (int)($_POST['role_id'] ?? 3); // Default to regular user role
+    $role_id = (int)($_POST['role_id'] ?? 3);
     $is_active = isset($_POST['is_active']) ? 1 : 0;
 
     // Validation
     $errors = [];
-    if (empty($username)) $errors[] = "Username is required";
-    if (empty($password)) $errors[] = "Password is required";
-    if (empty($email)) $errors[] = "Email is required";
-    if (empty($first_name)) $errors[] = "First name is required";
-    if (empty($last_name)) $errors[] = "Last name is required";
+    if (empty($id_number)) $errors['id_number'] = "ID Number is required";
+    if (empty($username)) $errors['username'] = "Username is required";
+    if (empty($email)) $errors['email'] = "Email is required";
+    if (empty($contact_number)) $errors['contact_number'] = "Contact number is required";
+    if (empty($first_name)) $errors['first_name'] = "First name is required";
+    if (empty($last_name)) $errors['last_name'] = "Last name is required";
+    if (empty($birthday)) $errors['birthday'] = "Birthday is required";
+    if (empty($sex)) $errors['sex'] = "Sex is required";
+    if (empty($street_purok)) $errors['street_purok'] = "Street/Purok is required";
+    if (empty($barangay)) $errors['barangay'] = "Barangay is required";
+    if (empty($city_municipal)) $errors['city_municipal'] = "City/Municipal is required";
+    if (empty($province)) $errors['province'] = "Province is required";
+    if (empty($zipcode)) $errors['zipcode'] = "Zip code is required";
+
+    // Age validation
+    if (!empty($birthday)) {
+        $birthdate = new DateTime($birthday);
+        $today = new DateTime();
+        $age_calc = $today->diff($birthdate)->y;
+        if ($age_calc < 18) {
+            $errors['birthday'] = "User must be at least 18 years old.";
+        }
+    }
 
     if (empty($errors)) {
         try {
             // Check if username, email, or id_number already exists
-            $check_query = "SELECT COUNT(*) FROM users WHERE username = :username OR email = :email";
-            $params = [':username' => $username, ':email' => $email];
-            
-            if (!empty($id_number)) {
-                $check_query = "SELECT COUNT(*) FROM users WHERE username = :username OR email = :email OR id_number = :id_number";
-                $params[':id_number'] = $id_number;
-            }
-            
+            $check_query = "SELECT username, email, id_number FROM users WHERE username = :username OR email = :email OR id_number = :id_number";
             $check_stmt = $conn->prepare($check_query);
-            $check_stmt->execute($params);
+            $check_stmt->execute([':username' => $username, ':email' => $email, ':id_number' => $id_number]);
+            $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($check_stmt->fetchColumn() > 0) {
-                $_SESSION['error_message'] = "Username, email, or ID number already exists";
-            } else {
-                // Calculate age if birthday is provided
-                if (!empty($birthday)) {
-                    $birthdate = new DateTime($birthday);
-                    $today = new DateTime();
-                    $age = $today->diff($birthdate)->y;
+            if ($existing) {
+                if ($existing['username'] === $username) $errors['username'] = "Username is already taken";
+                else if ($existing['email'] === $email) $errors['email'] = "Email is already in use";
+                else if ($existing['id_number'] === $id_number) $errors['id_number'] = "ID number is already taken";
+                
+                if ($is_ajax) {
+                    echo json_encode(['status' => 'error', 'errors' => $errors]);
+                    exit();
+                } else {
+                    $_SESSION['error_message'] = reset($errors);
                 }
-
+            } else {
                 // Insert new user
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                
-                $insert_query = "INSERT INTO users (
-                    username, password, email, id_number, first_name, middle_name, last_name, extension_name,
-                    birthday, age, sex, contact_number,
-                    street_purok, barangay, city_municipal, province, country, zipcode,
-                    role_id, is_active, created_at
-                ) VALUES (
-                    :username, :password, :email, :id_number, :first_name, :middle_name, :last_name, :extension_name,
-                    :birthday, :age, :sex, :contact_number,
-                    :street_purok, :barangay, :city_municipal, :province, :country, :zipcode,
-                    :role_id, :is_active, NOW()
-                )";
+                $insert_query = "INSERT INTO users (username, password, email, id_number, first_name, middle_name, last_name, extension_name, birthday, age, sex, contact_number, street_purok, barangay, city_municipal, province, country, zipcode, role_id, is_active, created_at) 
+                               VALUES (:username, :password, :email, :id_number, :first_name, :middle_name, :last_name, :extension_name, :birthday, :age, :sex, :contact_number, :street_purok, :barangay, :city_municipal, :province, :country, :zipcode, :role_id, :is_active, NOW())";
                 
                 $insert_stmt = $conn->prepare($insert_query);
                 $insert_stmt->execute([
-                    ':username' => $username,
-                    ':password' => $hashed_password,
-                    ':email' => $email,
-                    ':id_number' => $id_number ?: null,
-                    ':first_name' => $first_name,
-                    ':middle_name' => $middle_name ?: null,
-                    ':last_name' => $last_name,
-                    ':extension_name' => $extension_name ?: null,
-                    ':birthday' => $birthday ?: null,
-                    ':age' => $age,
-                    ':sex' => $sex ?: null,
-                    ':contact_number' => $contact_number ?: null,
-                    ':street_purok' => $street_purok ?: null,
-                    ':barangay' => $barangay ?: null,
-                    ':city_municipal' => $city_municipal ?: null,
-                    ':province' => $province ?: null,
-                    ':country' => $country,
-                    ':zipcode' => $zipcode ?: null,
-                    ':role_id' => $role_id,
-                    ':is_active' => $is_active ? 'true' : 'false'
+                    ':username' => $username, ':password' => $hashed_password, ':email' => $email, ':id_number' => $id_number ?: null,
+                    ':first_name' => $first_name, ':middle_name' => $middle_name ?: null, ':last_name' => $last_name, ':extension_name' => $extension_name ?: null,
+                    ':birthday' => $birthday ?: null, ':age' => $age, ':sex' => $sex ?: null, ':contact_number' => $contact_number ?: null,
+                    ':street_purok' => $street_purok ?: null, ':barangay' => $barangay ?: null, ':city_municipal' => $city_municipal ?: null,
+                    ':province' => $province ?: null, ':country' => $country, ':zipcode' => $zipcode ?: null,
+                    ':role_id' => $role_id, ':is_active' => $is_active ? 'true' : 'false'
                 ]);
 
                 $new_user_id = $conn->lastInsertId();
-
-                // Log the action in admin_activity_logs
+                
+                // Log the action
                 $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, new_data, ip_address, user_agent, created_at) 
                              VALUES (:admin_id, 'INSERT', 'users', :record_id, :new_data, :ip_address, :user_agent, NOW())";
                 $log_stmt = $conn->prepare($log_query);
                 $log_stmt->execute([
-                    ':record_id' => $new_user_id,
-                    ':admin_id' => $user_id,
+                    ':record_id' => $new_user_id, ':admin_id' => $user_id,
                     ':new_data' => json_encode(['username' => $username, 'email' => $email, 'role_id' => $role_id]),
-                    ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
-                    ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
+                    ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1', ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
                 ]);
 
-                $_SESSION['success_message'] = "User added successfully.";
+                $email_sent = EmailConfig::sendWelcomeEmail($email, $first_name, $username, $password);
+                $success_msg = "User added successfully." . ($email_sent ? " A welcome email with credentials and a setup link has been sent." : " However, the welcome email could not be sent.");
+                
+                if ($is_ajax) {
+                    echo json_encode(['status' => 'success', 'message' => $success_msg]);
+                    exit();
+                } else {
+                    $_SESSION['success_message'] = $success_msg;
+                }
             }
         } catch (PDOException $e) {
+            if ($is_ajax) {
+                echo json_encode(['status' => 'error', 'message' => "Database error: " . $e->getMessage()]);
+                exit();
+            }
             $_SESSION['error_message'] = "Database error: " . $e->getMessage();
         }
     } else {
+        if ($is_ajax) {
+            echo json_encode(['status' => 'error', 'errors' => $errors]);
+            exit();
+        }
         $_SESSION['error_message'] = implode("<br>", $errors);
     }
     
@@ -183,8 +201,10 @@ if (isset($_POST['add_user'])) {
     exit();
 }
 
-// Handle Edit User (keep existing code)
+// Handle Edit User
 if (isset($_POST['edit_user'])) {
+    $is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     $edit_user_id = (int)$_POST['user_id'];
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
@@ -206,158 +226,107 @@ if (isset($_POST['edit_user'])) {
     $is_active = isset($_POST['is_active']) ? 1 : 0;
     $new_password = $_POST['new_password'] ?? '';
 
-    // If regular admin (not super admin), redirect to request logic instead of applying immediately
+    // If regular admin, handle as request
     if (!$is_super_admin) {
-        // Proceed with creating an edit request
-        // Validation minimal here, will just pass as requested data
         $requested_data = [
-            'username' => $username,
-            'email' => $email,
-            'id_number' => $id_number,
-            'first_name' => $first_name,
-            'middle_name' => $middle_name,
-            'last_name' => $last_name,
-            'extension_name' => $extension_name,
-            'birthday' => $birthday,
-            'sex' => $sex,
-            'contact_number' => $contact_number,
-            'street_purok' => $street_purok,
-            'barangay' => $barangay,
-            'city_municipal' => $city_municipal,
-            'province' => $province,
-            'country' => $country,
-            'zipcode' => $zipcode,
-            'role_id' => $role_id,
-            'is_active' => $is_active
+            'username' => $username, 'email' => $email, 'id_number' => $id_number, 'first_name' => $first_name,
+            'middle_name' => $middle_name, 'last_name' => $last_name, 'extension_name' => $extension_name,
+            'birthday' => $birthday, 'sex' => $sex, 'contact_number' => $contact_number,
+            'street_purok' => $street_purok, 'barangay' => $barangay, 'city_municipal' => $city_municipal,
+            'province' => $province, 'country' => $country, 'zipcode' => $zipcode,
+            'role_id' => $role_id, 'is_active' => $is_active
         ];
-        if (!empty($new_password)) {
-            $requested_data['new_password'] = password_hash($new_password, PASSWORD_DEFAULT);
-        }
+        if (!empty($new_password)) $requested_data['new_password'] = password_hash($new_password, PASSWORD_DEFAULT);
 
         try {
             $reason = $_POST['edit_reason'] ?? 'User information update requested.';
             $ins_req_stmt = $conn->prepare("INSERT INTO edit_requests (user_id, requested_by, requested_data, reason) VALUES (:user_id, :requested_by, :requested_data, :reason)");
-            $ins_req_stmt->execute([
-                ':user_id' => $edit_user_id,
-                ':requested_by' => $user_id,
-                ':requested_data' => json_encode($requested_data),
-                ':reason' => $reason
-            ]);
+            $ins_req_stmt->execute([':user_id' => $edit_user_id, ':requested_by' => $user_id, ':requested_data' => json_encode($requested_data), ':reason' => $reason]);
+            
+            if ($is_ajax) {
+                echo json_encode(['status' => 'success', 'message' => "Edit request submitted successfully and is awaiting Super Admin approval."]);
+                exit();
+            }
             $_SESSION['success_message'] = "Edit request submitted successfully and is awaiting Super Admin approval.";
         } catch (PDOException $e) {
+            if ($is_ajax) {
+                echo json_encode(['status' => 'error', 'message' => "Failed to submit edit request: " . $e->getMessage()]);
+                exit();
+            }
             $_SESSION['error_message'] = "Failed to submit edit request: " . $e->getMessage();
         }
-        
         header("Location: users.php?" . http_build_query($_GET));
         exit();
     }
 
-    // Validation
+    // Validation for Super Admin direct edit
     $errors = [];
-    if (empty($username)) $errors[] = "Username is required";
-    if (empty($email)) $errors[] = "Email is required";
-    if (empty($first_name)) $errors[] = "First name is required";
-    if (empty($last_name)) $errors[] = "Last name is required";
+    if (empty($id_number)) $errors['id_number'] = "ID Number is required";
+    if (empty($username)) $errors['username'] = "Username is required";
+    if (empty($email)) $errors['email'] = "Email is required";
+    if (empty($contact_number)) $errors['contact_number'] = "Contact number is required";
+    if (empty($first_name)) $errors['first_name'] = "First name is required";
+    if (empty($last_name)) $errors['last_name'] = "Last name is required";
+    if (empty($birthday)) $errors['birthday'] = "Birthday is required";
+    if (empty($sex)) $errors['sex'] = "Sex is required";
+    if (empty($street_purok)) $errors['street_purok'] = "Street/Purok is required";
+    if (empty($barangay)) $errors['barangay'] = "Barangay is required";
+    if (empty($city_municipal)) $errors['city_municipal'] = "City/Municipal is required";
+    if (empty($province)) $errors['province'] = "Province is required";
+    if (empty($zipcode)) $errors['zipcode'] = "Zip code is required";
+
+    if (!empty($birthday)) {
+        $birthdate = new DateTime($birthday);
+        $today = new DateTime();
+        if ($today->diff($birthdate)->y < 18) $errors['birthday'] = "User must be at least 18 years old.";
+    }
 
     if (empty($errors)) {
         try {
-            // Check if username, email, or id_number already exists for other users
-            $check_query = "SELECT COUNT(*) FROM users WHERE (username = :username OR email = :email) AND user_id != :user_id";
-            $params = [
-                ':username' => $username,
-                ':email' => $email,
-                ':user_id' => $edit_user_id
-            ];
-            
-            if (!empty($id_number)) {
-                $check_query = "SELECT COUNT(*) FROM users WHERE (username = :username OR email = :email OR id_number = :id_number) AND user_id != :user_id";
-                $params[':id_number'] = $id_number;
-            }
-            
+            $check_query = "SELECT username, email, id_number FROM users WHERE (username = :username OR email = :email OR id_number = :id_number) AND user_id != :user_id";
             $check_stmt = $conn->prepare($check_query);
-            $check_stmt->execute($params);
+            $check_stmt->execute([':username' => $username, ':email' => $email, ':id_number' => $id_number, ':user_id' => $edit_user_id]);
+            $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($check_stmt->fetchColumn() > 0) {
-                $_SESSION['error_message'] = "Username, email, or ID number already exists";
+            if ($existing) {
+                if ($existing['username'] === $username) $errors['username'] = "Username is already taken";
+                else if ($existing['email'] === $email) $errors['email'] = "Email is already in use";
+                else if ($existing['id_number'] === $id_number) $errors['id_number'] = "ID number already exists";
+                
+                if ($is_ajax) {
+                    echo json_encode(['status' => 'error', 'errors' => $errors]);
+                    exit();
+                }
+                $_SESSION['error_message'] = reset($errors);
             } else {
-                // Calculate age if birthday is provided
-                $age = null;
-                if (!empty($birthday)) {
-                    $birthdate = new DateTime($birthday);
-                    $today = new DateTime();
-                    $age = $today->diff($birthdate)->y;
-                }
-
-                // Build update query
-                $update_fields = [
-                    'username = :username',
-                    'email = :email',
-                    'id_number = :id_number',
-                    'first_name = :first_name',
-                    'middle_name = :middle_name',
-                    'last_name = :last_name',
-                    'extension_name = :extension_name',
-                    'birthday = :birthday',
-                    'age = :age',
-                    'sex = :sex',
-                    'contact_number = :contact_number',
-                    'street_purok = :street_purok',
-                    'barangay = :barangay',
-                    'city_municipal = :city_municipal',
-                    'province = :province',
-                    'country = :country',
-                    'zipcode = :zipcode',
-                    'role_id = :role_id',
-                    'is_active = :is_active',
-                    'updated_at = NOW()'
-                ];
-
+                $age = !empty($birthday) ? (new DateTime())->diff(new DateTime($birthday))->y : null;
+                $update_query = "UPDATE users SET username = :username, email = :email, id_number = :id_number, first_name = :first_name, middle_name = :middle_name, last_name = :last_name, extension_name = :extension_name, birthday = :birthday, age = :age, sex = :sex, contact_number = :contact_number, street_purok = :street_purok, barangay = :barangay, city_municipal = :city_municipal, province = :province, country = :country, zipcode = :zipcode, role_id = :role_id, is_active = :is_active, updated_at = NOW() WHERE user_id = :user_id";
+                
                 $params = [
-                    ':username' => $username,
-                    ':email' => $email,
-                    ':id_number' => $id_number ?: null,
-                    ':first_name' => $first_name,
-                    ':middle_name' => $middle_name ?: null,
-                    ':last_name' => $last_name,
-                    ':extension_name' => $extension_name ?: null,
-                    ':birthday' => $birthday ?: null,
-                    ':age' => $age,
-                    ':sex' => $sex ?: null,
-                    ':contact_number' => $contact_number ?: null,
-                    ':street_purok' => $street_purok ?: null,
-                    ':barangay' => $barangay ?: null,
-                    ':city_municipal' => $city_municipal ?: null,
-                    ':province' => $province ?: null,
-                    ':country' => $country,
-                    ':zipcode' => $zipcode ?: null,
-                    ':role_id' => $role_id,
-                    ':is_active' => $is_active ? 'true' : 'false',
-                    ':user_id' => $edit_user_id
+                    ':username' => $username, ':email' => $email, ':id_number' => $id_number, ':first_name' => $first_name, ':middle_name' => $middle_name, ':last_name' => $last_name, ':extension_name' => $extension_name, ':birthday' => $birthday, ':age' => $age, ':sex' => $sex, ':contact_number' => $contact_number, ':street_purok' => $street_purok, ':barangay' => $barangay, ':city_municipal' => $city_municipal, ':province' => $province, ':country' => $country, ':zipcode' => $zipcode, ':role_id' => $role_id, ':is_active' => $is_active ? 'true' : 'false', ':user_id' => $edit_user_id
                 ];
+                $conn->prepare($update_query)->execute($params);
 
-                // Add password if provided
                 if (!empty($new_password)) {
-                    $update_fields[] = 'password = :password';
-                    $params[':password'] = password_hash($new_password, PASSWORD_DEFAULT);
+                    $conn->prepare("UPDATE users SET password = :password WHERE user_id = :user_id")->execute([':password' => password_hash($new_password, PASSWORD_DEFAULT), ':user_id' => $edit_user_id]);
                 }
 
-                $update_query = "UPDATE users SET " . implode(', ', $update_fields) . " WHERE user_id = :user_id";
-                $update_stmt = $conn->prepare($update_query);
-                $update_stmt->execute($params);
-
-                // Log the action in admin_activity_logs
-                $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, old_data, new_data, ip_address, user_agent, created_at) 
-                             VALUES (:admin_id, 'UPDATE', 'users', :record_id, :old_data, :new_data, :ip_address, :user_agent, NOW())";
+                // Log the action
+                $log_query = "INSERT INTO admin_activity_logs (admin_id, action_type, table_name, record_id, new_data, ip_address, user_agent, created_at) 
+                             VALUES (:admin_id, 'UPDATE', 'users', :record_id, :new_data, :ip_address, :user_agent, NOW())";
                 $log_stmt = $conn->prepare($log_query);
                 $log_stmt->execute([
                     ':record_id' => $edit_user_id,
                     ':admin_id' => $user_id,
-                    ':old_data' => null, // Simplified for now
-                    ':new_data' => json_encode($_POST),
+                    ':new_data' => json_encode(['username' => $username, 'email' => $email, 'role_id' => $role_id]),
                     ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
                     ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
                 ]);
 
+                if ($is_ajax) {
+                    echo json_encode(['status' => 'success', 'message' => "User updated successfully."]);
+                    exit();
+                }
                 $_SESSION['success_message'] = "User updated successfully.";
             }
         } catch (PDOException $e) {
@@ -371,16 +340,53 @@ if (isset($_POST['edit_user'])) {
     exit();
 }
 
-// Handle User Status Toggle (keep existing code)
+// Handle User Status Toggle
 if (isset($_POST['toggle_status']) && $is_admin) {
     $target_user_id = (int)$_POST['user_id'];
-    $new_status = $_POST['new_status'] === 'true' ? true : false;
+    $new_status_val = $_POST['new_status'] === 'true' ? true : false;
     
+    // If regular admin, handle as request
+    if (!$is_super_admin) {
+        try {
+            $reason = $_POST['status_reason'] ?? 'User status change requested.';
+            $requested_data = ['is_active' => $new_status_val ? 1 : 0];
+            
+            // Check if there's already a pending edit request for this user's status
+            $check_req_stmt = $conn->prepare("SELECT COUNT(*) FROM edit_requests WHERE user_id = :user_id AND status = 'pending'");
+            $check_req_stmt->execute([':user_id' => $target_user_id]);
+            
+            if ($check_req_stmt->fetchColumn() > 0) {
+                $_SESSION['error_message'] = "An edit or status request for this user is already pending.";
+            } else {
+                $ins_req_stmt = $conn->prepare("INSERT INTO edit_requests (user_id, requested_by, requested_data, reason) VALUES (:user_id, :requested_by, :requested_data, :reason)");
+                $ins_req_stmt->execute([
+                    ':user_id' => $target_user_id,
+                    ':requested_by' => $user_id,
+                    ':requested_data' => json_encode($requested_data),
+                    ':reason' => $reason
+                ]);
+                
+                $_SESSION['success_message'] = "Status change request submitted successfully and is awaiting Super Admin approval.";
+            }
+        } catch (PDOException $e) {
+            $_SESSION['error_message'] = "Failed to submit status request: " . $e->getMessage();
+        }
+        header("Location: users.php?" . http_build_query($_GET));
+        exit();
+    }
+
+    // Super Admin direct toggle
     try {
+        // Fetch user data first to check last_login and email
+        $user_query = "SELECT email, first_name, last_login, is_active FROM users WHERE user_id = :user_id";
+        $user_stmt = $conn->prepare($user_query);
+        $user_stmt->execute([':user_id' => $target_user_id]);
+        $userData = $user_stmt->fetch(PDO::FETCH_ASSOC);
+
         $update_query = "UPDATE users SET is_active = :is_active, updated_at = NOW() WHERE user_id = :user_id";
         $update_stmt = $conn->prepare($update_query);
         $update_stmt->execute([
-            ':is_active' => $new_status ? 'true' : 'false',
+            ':is_active' => $new_status_val ? 'true' : 'false',
             ':user_id' => $target_user_id
         ]);
         
@@ -391,15 +397,62 @@ if (isset($_POST['toggle_status']) && $is_admin) {
         $log_stmt->execute([
             ':record_id' => $target_user_id,
             ':admin_id' => $user_id,
-            ':old_data' => json_encode(['is_active' => !$new_status]),
-            ':new_data' => json_encode(['is_active' => $new_status]),
+            ':old_data' => json_encode(['is_active' => !($new_status_val)]),
+            ':new_data' => json_encode(['is_active' => $new_status_val]),
             ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
             ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
         ]);
         
-        $_SESSION['success_message'] = "User status updated successfully.";
+        // Send approval email if this is a newly registered user being activated
+        if ($userData && empty($userData['last_login']) && $userData['is_active'] == false && $new_status_val == true) {
+            EmailConfig::sendRegistrationStatusEmail($userData['email'], $userData['first_name'], 'accepted');
+            $_SESSION['success_message'] = "User registration approved and notification email sent.";
+        } else {
+            $_SESSION['success_message'] = "User status updated successfully.";
+        }
     } catch (PDOException $e) {
         $_SESSION['error_message'] = "Failed to update user status.";
+    }
+    
+    header("Location: users.php?" . http_build_query($_GET));
+    exit();
+}
+
+// Handle Reject Registration Request (Admin and Super Admin)
+if (isset($_POST['reject_registration']) && $is_admin) {
+    $target_user_id = (int)$_POST['user_id'];
+    $reason = $_POST['reason'] ?? 'Did not meet requirements.';
+    
+    try {
+        $conn->beginTransaction();
+        
+        // Fetch user data
+        $select_query = "SELECT * FROM users WHERE user_id = :user_id";
+        $select_stmt = $conn->prepare($select_query);
+        $select_stmt->execute([':user_id' => $target_user_id]);
+        $user_data = $select_stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($user_data && empty($user_data['last_login']) && $user_data['is_active'] == false) {
+            // Send rejection email
+            EmailConfig::sendRegistrationStatusEmail($user_data['email'], $user_data['first_name'], 'rejected', $reason);
+            
+            // Delete related records
+            $conn->prepare("DELETE FROM user_security_answers WHERE user_id = :user_id")->execute([':user_id' => $target_user_id]);
+            
+            // Delete user
+            $delete_query = "DELETE FROM users WHERE user_id = :user_id";
+            $delete_stmt = $conn->prepare($delete_query);
+            $delete_stmt->execute([':user_id' => $target_user_id]);
+            
+            $conn->commit();
+            $_SESSION['success_message'] = "User registration rejected, deleted, and notification email sent.";
+        } else {
+            $conn->rollBack();
+            $_SESSION['error_message'] = "Cannot reject this user. They may already be active or missing.";
+        }
+    } catch (PDOException $e) {
+        $conn->rollBack();
+        $_SESSION['error_message'] = "Failed to reject user: " . $e->getMessage();
     }
     
     header("Location: users.php?" . http_build_query($_GET));
@@ -648,8 +701,19 @@ if (isset($_POST['approve_edit']) && $is_super_admin) {
                 ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
             ]);
             
+            // Check if this was a registration approval (active = true, last_login = NULL)
+            $user_check_stmt = $conn->prepare("SELECT email, first_name, last_login FROM users WHERE user_id = :user_id");
+            $user_check_stmt->execute([':user_id' => $target_user_id]);
+            $userData = $user_check_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $notif_sent = false;
+            if ($userData && empty($userData['last_login']) && isset($data['is_active']) && $data['is_active'] == 1) {
+                EmailConfig::sendRegistrationStatusEmail($userData['email'], $userData['first_name'], 'accepted');
+                $notif_sent = true;
+            }
+
             $conn->commit();
-            $_SESSION['success_message'] = "User edit approved and applied successfully.";
+            $_SESSION['success_message'] = "User edit approved and applied successfully." . ($notif_sent ? " Notification email sent." : "");
         } else {
             if ($conn->inTransaction()) {
                 $conn->rollBack();
@@ -754,6 +818,16 @@ if ($status_filter !== 'all') {
 if ($role_filter > 0) {
     $conditions[] = "u.role_id = :role_id";
     $params[':role_id'] = $role_filter;
+}
+
+if ($sex_filter !== 'all') {
+    $conditions[] = "u.sex = :sex";
+    $params[':sex'] = $sex_filter;
+}
+
+if ($barangay_filter !== 'all') {
+    $conditions[] = "u.barangay = :barangay";
+    $params[':barangay'] = $barangay_filter;
 }
 
 $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
@@ -1317,6 +1391,91 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr; }
         }
+
+        /* User Profile Detailed View - Premium UI/UX */
+        .detailed-log-view {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .log-detail-section {
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #f0f4ef;
+        }
+        
+        .log-detail-section:last-child {
+            border-bottom: none;
+        }
+
+        .log-section-title {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #589065;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .log-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.2rem 1rem;
+        }
+
+        .acc-info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.2rem 1rem;
+        }
+
+        .log-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .log-field-label {
+            font-size: 0.65rem;
+            color: #8c9c8c;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .log-field-value {
+            font-size: 0.85rem;
+            color: #1a2a1f;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 1100px) {
+            .log-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 850px) {
+            .log-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 550px) {
+            .log-grid { grid-template-columns: 1fr; }
+        }
+        .error-msg {
+            color: var(--danger);
+            font-size: 0.75rem;
+            margin-top: 4px;
+            display: none;
+            font-weight: 500;
+        }
+
+        .input-box input.invalid, 
+        .input-box select.invalid {
+            border-color: var(--danger);
+            background-color: #fff8f8;
+        }
     </style>
 </head>
 <body>
@@ -1361,6 +1520,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         <span>Users</span>
                     </a>
                 </li>
+                <?php if ($is_super_admin || in_array('manage_questions', $_SESSION['permissions'] ?? []) || in_array('all', $_SESSION['permissions'] ?? [])): ?>
+                <li class="nav-item">
+                    <a href="security_questions.php">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Security Questions</span>
+                    </a>
+                </li>
+                <?php endif; ?>
                 <li class="nav-item">
                     <a href="logs.php">
                         <i class="fas fa-history"></i>
@@ -1371,16 +1538,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <?php if ($is_super_admin): ?>
                 <li class="nav-divider"></li>
                 <li class="nav-header">Administration</li>
-                <li class="nav-item">
-                    <a href="admin.php">
-                        <i class="fas fa-cog"></i>
-                        <span>Admin Panel</span>
-                    </a>
-                </li>
+
                 <li class="nav-item">
                     <a href="user_management.php">
                         <i class="fas fa-users-cog"></i>
-                        <span>Staff Management</span>
+                        <span>Admin Management</span>
                     </a>
                 </li>
                 <?php endif; ?>
@@ -1476,11 +1638,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                         <td>
                                             <div class="action-buttons">
                                                 <button class="action-btn" style="color: var(--success);" 
-                                                        onclick='openReviewModal(<?php echo json_encode($req); ?>, "approve")' title="Approve & Delete">
+                                                        onclick="openReviewModal(<?php echo htmlspecialchars(json_encode($req), ENT_QUOTES, 'UTF-8'); ?>, 'approve')" title="Approve & Delete">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                                 <button class="action-btn" style="color: var(--danger);" 
-                                                        onclick='openReviewModal(<?php echo json_encode($req); ?>, "deny")' title="Deny Request">
+                                                        onclick="openReviewModal(<?php echo htmlspecialchars(json_encode($req), ENT_QUOTES, 'UTF-8'); ?>, 'deny')" title="Deny Request">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </div>
@@ -1522,7 +1684,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                         </td>
                                         <td style="max-width: 300px; white-space: normal; line-height: 1.4;">
                                             <?php echo htmlspecialchars($req['reason']); ?><br>
-                                            <span style="font-size: 0.8rem; color: var(--secondary);"><a href="#" onclick='openViewEditRequestModal(<?php echo json_encode($req); ?>); return false;'>View ChangesRequested</a></span>
+                                            <span style="font-size: 0.8rem; color: var(--secondary);"><a href="#" onclick="openViewEditRequestModal(<?php echo htmlspecialchars(json_encode($req), ENT_QUOTES, 'UTF-8'); ?>); return false;">View ChangesRequested</a></span>
                                         </td>
                                         <td>
                                             <div style="font-size: 0.8rem;"><?php echo date('M d, Y', strtotime($req['created_at'])); ?></div>
@@ -1531,11 +1693,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                         <td>
                                             <div class="action-buttons">
                                                 <button class="action-btn" style="color: var(--success);" 
-                                                        onclick='openReviewEditModal(<?php echo json_encode($req); ?>, "approve")' title="Approve & Apply Edit">
+                                                        onclick="openReviewEditModal(<?php echo htmlspecialchars(json_encode($req), ENT_QUOTES, 'UTF-8'); ?>, 'approve')" title="Approve & Apply Edit">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                                 <button class="action-btn" style="color: var(--danger);" 
-                                                        onclick='openReviewEditModal(<?php echo json_encode($req); ?>, "deny")' title="Deny Request">
+                                                        onclick="openReviewEditModal(<?php echo htmlspecialchars(json_encode($req), ENT_QUOTES, 'UTF-8'); ?>, 'deny')" title="Deny Request">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </div>
@@ -1582,6 +1744,21 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive Only</option>
                         </select>
                     </div>
+
+                    <div class="filter-group">
+                        <label><i class="fas fa-user-tag"></i> Role</label>
+                        <select name="role">
+                            <option value="0">All Roles</option>
+                            <?php foreach ($roles as $role): ?>
+                                <option value="<?php echo $role['role_id']; ?>" <?php echo $role_filter == $role['role_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($role['role_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+
+                    
                     
                     <div class="filter-actions" style="display: flex; gap: 0.5rem;">
                         <button type="submit" class="btn-modern btn-primary" style="flex: 1;">
@@ -1707,25 +1884,56 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                             
                                             
                                             <?php if ($user['user_id'] != $user_id): ?>
-                                            <form method="POST" style="display: contents;">
-                                                <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
-                                                <input type="hidden" name="new_status" value="<?php echo $user['is_active'] ? 'false' : 'true'; ?>">
-                                                <button type="submit" name="toggle_status" class="action-btn" 
-                                                        title="<?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>">
-                                                    <i class="fas <?php echo $user['is_active'] ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
-                                                </button>
-                                            </form>
-                                            
-                                            <?php if ($is_super_admin): ?>
-                                                <button onclick="showDeleteModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>')" 
-                                                        class="action-btn action-btn-delete" title="Delete User">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
+                                            <?php if (!$user['is_active'] && empty($user['last_login'])): ?>
+                                                <!-- Registration Approval Flow -->
+                                                <form method="POST" style="display: contents;">
+                                                    <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
+                                                    <input type="hidden" name="new_status" value="true">
+                                                    <button type="submit" name="toggle_status" class="action-btn" 
+                                                            title="Approve Registration" style="color: var(--success);">
+                                                        <i class="fas fa-check-circle"></i>
+                                                    </button>
+                                                </form>
+                                                
+                                                <form method="POST" style="display: contents;" onsubmit="return confirm('Are you sure you want to reject this registration? This will delete the user.');">
+                                                    <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
+                                                    <button type="submit" name="reject_registration" class="action-btn" 
+                                                            title="Reject & Delete Registration" style="color: var(--danger);">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
                                             <?php else: ?>
-                                                <button onclick="showRequestDeletionModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>')" 
-                                                        class="action-btn action-btn-delete" title="Request Deletion">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
+                                                <!-- Standard Activate/Deactivate Toggle -->
+                                                <?php if ($is_super_admin): ?>
+                                                    <form method="POST" style="display: contents;">
+                                                        <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
+                                                        <input type="hidden" name="new_status" value="<?php echo $user['is_active'] ? 'false' : 'true'; ?>">
+                                                        <button type="submit" name="toggle_status" class="action-btn" 
+                                                                title="<?php echo $user['is_active'] ? 'Deactivate' : 'Activate'; ?>">
+                                                            <i class="fas <?php echo $user['is_active'] ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <!-- Request Status Change -->
+                                                    <button type="button" class="action-btn" 
+                                                            onclick="showStatusRequestModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>', <?php echo $user['is_active'] ? 'false' : 'true'; ?>)"
+                                                            title="Request <?php echo $user['is_active'] ? 'Deactivation' : 'Activation'; ?>">
+                                                        <i class="fas <?php echo $user['is_active'] ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                                
+                                                <!-- Delete button -->
+                                                <?php if ($is_super_admin): ?>
+                                                    <button onclick="showDeleteModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>')" 
+                                                            class="action-btn action-btn-delete" title="Delete User">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button onclick="showRequestDeletionModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>')" 
+                                                            class="action-btn action-btn-delete" title="Request Deletion">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                <?php endif; ?>
                                             <?php endif; ?>
                                             <?php endif; ?>
                                         </div>
@@ -1771,93 +1979,131 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     
 <!-- Add User Modal -->
 <div id="addModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 1100px;">
         <div class="modal-header">
             <h3 style="color: var(--primary-dark); font-weight: 700;">Add New User</h3>
             <span class="close" onclick="closeAddModal()">&times;</span>
         </div>
         <form method="POST" id="addForm">
             <div class="modal-body">
-                <div class="form-header">Personal Information</div>
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                <div class="form-header">Account Information</div>
+                <div class="acc-info">
+                    <div class="input-box">
                         <label>ID Number</label>
-                        <input type="text" name="id_number" placeholder="0000-0000">
+                        <input type="text" name="id_number" id="add_id_number" placeholder="0000-0000" autocomplete="off">
+                        <span class="error-msg" id="err-id_number"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Username</label>
-                        <input type="text" name="username" placeholder="alex24" required>
+                        <input type="text" name="username" id="add_username" placeholder="alex24" autocomplete="username">
+                        <span class="error-msg" id="err-username"></span>
                     </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Email Address</label>
-                        <input type="email" name="email" placeholder="alex.ligalig@company.com" required>
+                        <input type="email" name="email" id="add_email" placeholder="alex.ligalig@company.com" autocomplete="email">
+                        <span class="error-msg" id="err-email"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Contact Number</label>
-                        <input type="text" name="contact_number" placeholder="09123456789">
+                        <input type="text" name="contact_number" id="add_contact_number" placeholder="09123456789" autocomplete="tel">
+                        <span class="error-msg" id="err-contact_number"></span>
                     </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
-                        <label>First Name</label>
-                        <input type="text" name="first_name" required>
-                    </div>
-                    <div class="input-box" style="flex: 1;">
-                        <label>Last Name</label>
-                        <input type="text" name="last_name" required>
-                    </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
-                        <label>Birthday</label>
-                        <input type="date" name="birthday" onchange="calculateAddAge()" id="add_birthday">
-                    </div>
-                    <div class="input-box" style="flex: 1;">
-                        <label>Age</label>
-                        <input type="text" id="add_age" readonly style="background-color: var(--gray-100);">
-                    </div>
-                    <div class="input-box" style="flex: 1;">
-                        <label>Sex</label>
-                        <select name="sex">
-                            <option value="">Select Sex</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-header">Account Settings</div>
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
-                        <label>Role</label>
-                        <select name="role_id">
-                            <?php foreach ($roles as $role): ?>
-                            <option value="<?php echo $role['role_id']; ?>" <?php echo ($role['role_id'] == 3) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($role['role_name']); ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Password</label>
                         <div class="password-input-group">
-                            <input type="password" name="password" id="add_password" required>
+                            <input type="password" name="password" id="add_password" value="FFll24()" placeholder="Create complex password" autocomplete="new-password">
                             <button type="button" class="password-toggle" onclick="togglePasswordVisibility('add_password', this)">
                                 <i class="fas fa-eye"></i>
                             </button>
                         </div>
+                        <div class="strength-meter-container" style="margin-top: 5px;">
+                            <div id="add_strength_meter" style="height: 4px; width: 0; transition: all 0.3s; border-radius: 2px;"></div>
+                            <span id="add_strength_text" style="font-size: 0.7rem; color: var(--secondary);">Password Strength: None</span>
+                        </div>
+                        <span class="error-msg" id="err-password"></span>
                     </div>
                 </div>
 
-                <div class="input-box" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" name="is_active" id="add_is_active" checked style="width: auto;">
-                    <label for="add_is_active" style="margin-bottom: 0;">Account is Active</label>
+                <div class="form-header">Personal Information</div>
+                <div class="acc-info">
+                    <div class="input-box">
+                        <label>First Name</label>
+                        <input type="text" name="first_name" id="add_first_name" autocomplete="given-name">
+                        <span class="error-msg" id="err-first_name"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Middle Name (Optional)</label>
+                        <input type="text" name="middle_name" id="add_middle_name" autocomplete="additional-name">
+                        <span class="error-msg" id="err-middle_name"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Last Name</label>
+                        <input type="text" name="last_name" id="add_last_name" autocomplete="family-name">
+                        <span class="error-msg" id="err-last_name"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Extension Name</label>
+                        <input type="text" name="extension_name" id="add_extension_name" placeholder="Jr., Sr." autocomplete="honorific-suffix">
+                        <span class="error-msg" id="err-extension_name"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Birthday</label>
+                        <input type="date" name="birthday" onchange="calculateAddAge()" id="add_birthday" autocomplete="bday">
+                        <span class="error-msg" id="err-birthday"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Age</label>
+                        <input type="text" id="add_age" readonly style="background-color: var(--gray-100);">
+                    </div>
+                    <div class="input-box">
+                        <label>Sex</label>
+                        <select name="sex" id="add_sex">
+                            <option value="">Select Sex</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                        <span class="error-msg" id="err-sex"></span>
+                    </div>
+                    <div class="input-box">
+                        <!-- Spacer for grid alignment -->
+                    </div>
                 </div>
+
+                <div class="form-header">Address Information</div>
+                <div class="log-grid">
+                    <div class="input-box">
+                        <label>Purok/Street</label>
+                        <input type="text" name="street_purok" id="add_street_purok" autocomplete="street-address">
+                        <span class="error-msg" id="err-street_purok"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Barangay</label>
+                        <input type="text" name="barangay" id="add_barangay" autocomplete="address-level3">
+                        <span class="error-msg" id="err-barangay"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>City/Municipal</label>
+                        <input type="text" name="city_municipal" id="add_city_municipal" autocomplete="address-level2">
+                        <span class="error-msg" id="err-city_municipal"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Province</label>
+                        <input type="text" name="province" id="add_province" autocomplete="address-level1">
+                        <span class="error-msg" id="err-province"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Country</label>
+                        <input type="text" name="country" id="add_country" value="Philippines" autocomplete="country-name">
+                        <span class="error-msg" id="err-country"></span>
+                    </div>
+                    <div class="input-box">
+                        <label>Zip Code</label>
+                        <input type="text" name="zipcode" id="add_zipcode" autocomplete="postal-code">
+                        <span class="error-msg" id="err-zipcode"></span>
+                    </div>
+                </div>
+
+                
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-modern btn-secondary" onclick="closeAddModal()">Cancel</button>
@@ -1869,7 +2115,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
 <!-- Edit User Modal -->
 <div id="editModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 1100px;">
         <div class="modal-header">
             <h3 style="color: var(--primary-dark); font-weight: 700;">Edit User Information</h3>
             <span class="close" onclick="closeEditModal()">&times;</span>
@@ -1877,96 +2123,111 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         <form method="POST" id="editForm">
             <input type="hidden" name="user_id" id="edit_user_id">
             <div class="modal-body">
-                <div class="form-header">Personal Information</div>
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                <div class="form-header">Account Information</div>
+                <div class="log-grid">
+                    <div class="input-box">
                         <label>ID Number</label>
-                        <input type="text" id="edit_id_number" name="id_number">
+                        <input type="text" id="edit_id_number" name="id_number" autocomplete="off">
+                        <span class="error-msg" id="err-edit-id_number"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Username</label>
-                        <input type="text" id="edit_username" name="username" required>
+                        <input type="text" id="edit_username" name="username" autocomplete="username">
+                        <span class="error-msg" id="err-edit-username"></span>
                     </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Email Address</label>
-                        <input type="email" id="edit_email" name="email" required>
+                        <input type="email" id="edit_email" name="email" autocomplete="email">
+                        <span class="error-msg" id="err-edit-email"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Contact Number</label>
-                        <input type="text" id="edit_contact_number" name="contact_number">
+                        <input type="text" id="edit_contact_number" name="contact_number" autocomplete="tel">
+                        <span class="error-msg" id="err-edit-contact_number"></span>
                     </div>
                 </div>
 
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                <div class="form-header">Personal Information</div>
+                <div class="log-grid">
+                    <div class="input-box">
                         <label>First Name</label>
-                        <input type="text" id="edit_first_name" name="first_name" required>
+                        <input type="text" id="edit_first_name" name="first_name" autocomplete="given-name">
+                        <span class="error-msg" id="err-edit-first_name"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
+                        <label>Middle Name (Optional)</label>
+                        <input type="text" id="edit_middle_name" name="middle_name" autocomplete="additional-name">
+                        <span class="error-msg" id="err-edit-middle_name"></span>
+                    </div>
+                    <div class="input-box">
                         <label>Last Name</label>
-                        <input type="text" id="edit_last_name" name="last_name" required>
+                        <input type="text" id="edit_last_name" name="last_name" autocomplete="family-name">
+                        <span class="error-msg" id="err-edit-last_name"></span>
                     </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
+                        <label>Extension Name (Optional)</label>
+                        <input type="text" id="edit_extension_name" name="extension_name" autocomplete="honorific-suffix">
+                        <span class="error-msg" id="err-edit-extension_name"></span>
+                    </div>
+                    <div class="input-box">
                         <label>Birthday</label>
-                        <input type="date" id="edit_birthday" name="birthday" onchange="calculateEditAge()">
+                        <input type="date" id="edit_birthday" name="birthday" onchange="calculateEditAge()" autocomplete="bday">
+                        <span class="error-msg" id="err-edit-birthday"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Age</label>
                         <input type="text" id="edit_age" readonly style="background-color: var(--gray-100);">
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Sex</label>
                         <select id="edit_sex" name="sex">
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                         </select>
+                        <span class="error-msg" id="err-edit-sex"></span>
+                    </div>
+                    <div class="input-box">
+                        <!-- Spacer -->
                     </div>
                 </div>
 
                 <div class="form-header">Address Information</div>
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                <div class="log-grid">
+                    <div class="input-box">
                         <label>Street/Purok</label>
-                        <input type="text" id="edit_street_purok" name="street_purok">
+                        <input type="text" id="edit_street_purok" name="street_purok" autocomplete="street-address">
+                        <span class="error-msg" id="err-edit-street_purok"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Barangay</label>
-                        <input type="text" id="edit_barangay" name="barangay">
+                        <input type="text" id="edit_barangay" name="barangay" autocomplete="address-level3">
+                        <span class="error-msg" id="err-edit-barangay"></span>
                     </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>City/Municipal</label>
-                        <input type="text" id="edit_city_municipal" name="city_municipal">
+                        <input type="text" id="edit_city_municipal" name="city_municipal" autocomplete="address-level2">
+                        <span class="error-msg" id="err-edit-city_municipal"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Province</label>
-                        <input type="text" id="edit_province" name="province">
+                        <input type="text" id="edit_province" name="province" autocomplete="address-level1">
+                        <span class="error-msg" id="err-edit-province"></span>
                     </div>
-                </div>
-
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Country</label>
-                        <input type="text" id="edit_country" name="country" value="Philippines">
+                        <input type="text" id="edit_country" name="country" value="Philippines" autocomplete="country-name">
+                        <span class="error-msg" id="err-edit-country"></span>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>Zipcode</label>
-                        <input type="text" id="edit_zipcode" name="zipcode">
+                        <input type="text" id="edit_zipcode" name="zipcode" autocomplete="postal-code">
+                        <span class="error-msg" id="err-edit-zipcode"></span>
                     </div>
                 </div>
-
 
                 <div class="form-header">Security & Access</div>
-                <div class="column" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                    <div class="input-box" style="flex: 1;">
+                <div class="log-grid">
+                    <div class="input-box">
                         <label>Role</label>
                         <select id="edit_role_id" name="role_id">
                             <?php foreach ($roles as $role): ?>
@@ -1976,20 +2237,24 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="input-box" style="flex: 1;">
+                    <div class="input-box">
                         <label>New Password (Optional)</label>
                         <div class="password-input-group">
-                            <input type="password" name="new_password" id="edit_password" placeholder="Leave blank to keep current">
+                            <input type="password" name="new_password" id="edit_password" placeholder="Leave blank to keep current" autocomplete="new-password">
                             <button type="button" class="password-toggle" onclick="togglePasswordVisibility('edit_password', this)">
                                 <i class="fas fa-eye"></i>
                             </button>
                         </div>
+                        <button type="button" class="btn-modern btn-secondary" style="margin-top: 5px; padding: 4px 8px; font-size: 0.75rem; width: auto;" onclick="document.getElementById('edit_password').value = 'abcd1234'">
+                            <i class="fas fa-key"></i> Set to abcd1234
+                        </button>
                     </div>
-                </div>
-
-                <div class="input-box" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" name="is_active" id="edit_is_active" style="width: auto;">
-                    <label for="edit_is_active" style="margin-bottom: 0;">Account is Active</label>
+                    <div class="input-box" style="display: flex; align-items: flex-end; padding-bottom: 0.5rem; grid-column: span 2;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" name="is_active" id="edit_is_active" style="width: auto; margin: 0;">
+                            <label for="edit_is_active" style="margin: 0; cursor: pointer;">Account is Active</label>
+                        </div>
+                    </div>
                 </div>
             
             <?php if (!$is_super_admin): ?>
@@ -2010,7 +2275,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
 
 <!-- View User Modal -->
 <div id="viewModal" class="modal">
-    <div class="modal-content" style="max-width: 700px;">
+    <div class="modal-content" style="max-width: 1000px;">
         <div class="modal-header">
             <h3 style="color: var(--primary-dark); font-weight: 700;">User Profile Details</h3>
             <span class="close" onclick="closeViewModal()">&times;</span>
@@ -2030,7 +2295,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
+<!-- Delete Confirmation Modal (existing) -->
 <div id="deleteModal" class="modal">
     <div class="modal-content" style="max-width: 450px;">
         <div class="modal-header">
@@ -2051,6 +2316,31 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 <button type="submit" name="delete_user" class="btn-modern btn-primary" style="background-color: var(--danger);">Delete Now</button>
             </form>
         </div>
+    </div>
+</div>
+
+<!-- Status Change Request Modal -->
+<div id="statusRequestModal" class="modal">
+    <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 style="color: var(--primary); font-weight: 700;">Request Status Change</h3>
+            <span class="close" onclick="hideStatusRequestModal()">&times;</span>
+        </div>
+        <form method="POST">
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem;">Requesting to <strong id="statusActionLabel"></strong> account for <strong id="statusUserName"></strong>.</p>
+                <input type="hidden" name="user_id" id="statusUserId">
+                <input type="hidden" name="new_status" id="statusNewValue">
+                <div class="input-box">
+                    <label>Reason for Request <span style="color: #c53030;">(Required)</span></label>
+                    <textarea name="status_reason" rows="3" style="width: 100%; border: 1px solid var(--gray-300); border-radius: 4px; padding: 0.7rem;" placeholder="Please provide a reason for this status change..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-modern btn-secondary" onclick="hideStatusRequestModal()">Cancel</button>
+                <button type="submit" name="toggle_status" class="btn-modern btn-primary">Submit Request</button>
+            </div>
+        </form>
     </div>
 </div>
     
@@ -2208,6 +2498,21 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         document.body.style.overflow = 'auto';
     }
 
+    // Status Request Modal functions
+    function showStatusRequestModal(userId, userName, newStatus) {
+        document.getElementById('statusUserId').value = userId;
+        document.getElementById('statusUserName').textContent = userName;
+        document.getElementById('statusNewValue').value = newStatus;
+        document.getElementById('statusActionLabel').textContent = newStatus ? 'Activate' : 'Deactivate';
+        document.getElementById('statusRequestModal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function hideStatusRequestModal() {
+        document.getElementById('statusRequestModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+
     // Calculate age for add form
     function calculateAddAge() {
         const birthday = document.getElementById('add_birthday').value;
@@ -2296,17 +2601,416 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 }
             });
         }
-
-        // Validate password match for add form
+        
+        // Form validation and submission for add user
         const addForm = document.getElementById('addForm');
         if (addForm) {
+            addForm.setAttribute('novalidate', 'true');
             addForm.addEventListener('submit', function(e) {
-                const password = document.getElementById('add_password').value;
-                const repassword = document.getElementById('add_repassword').value;
+                e.preventDefault();
+                let isValid = true;
                 
-                if (password !== repassword) {
-                    e.preventDefault();
-                    alert('Passwords do not match!');
+                // Fields to validate (matching register.php requirements)
+                const fields = [
+                    { id: 'add_id_number', errId: 'err-id_number', name: 'ID Number', required: true },
+                    { id: 'add_username', errId: 'err-username', name: 'Username', required: true },
+                    { id: 'add_email', errId: 'err-email', name: 'Email Address', required: true },
+                    { id: 'add_contact_number', errId: 'err-contact_number', name: 'Contact Number', required: true },
+                    { id: 'add_first_name', errId: 'err-first_name', name: 'First Name', required: true },
+                    { id: 'add_middle_name', errId: 'err-middle_name', name: 'Middle Name', required: false },
+                    { id: 'add_last_name', errId: 'err-last_name', name: 'Last Name', required: true },
+                    { id: 'add_extension_name', errId: 'err-extension_name', name: 'Extension Name', required: false },
+                    { id: 'add_birthday', errId: 'err-birthday', name: 'Birthday', required: true },
+                    { id: 'add_sex', errId: 'err-sex', name: 'Sex', required: true },
+                    { id: 'add_street_purok', errId: 'err-street_purok', name: 'Purok/Street', required: true },
+                    { id: 'add_barangay', errId: 'err-barangay', name: 'Barangay', required: true },
+                    { id: 'add_city_municipal', errId: 'err-city_municipal', name: 'City/Municipal', required: true },
+                    { id: 'add_province', errId: 'err-province', name: 'Province', required: true },
+                    { id: 'add_country', errId: 'err-country', name: 'Country', required: true },
+                    { id: 'add_zipcode', errId: 'err-zipcode', name: 'Zip Code', required: true },
+                    { id: 'add_password', errId: 'err-password', name: 'Password', required: true }
+                ];
+                
+                // Clear previous errors
+                fields.forEach(field => {
+                    const input = document.getElementById(field.id);
+                    const errSpan = document.getElementById(field.errId);
+                    if (input) input.classList.remove('invalid');
+                    if (errSpan) {
+                        errSpan.textContent = '';
+                        errSpan.style.display = 'none';
+                    }
+                });
+                
+                // Client-side validation (Synchronized with register.js)
+                fields.forEach(field => {
+                    const input = document.getElementById(field.id);
+                    const errSpan = document.getElementById(field.errId);
+                    if (!input) return;
+                    const value = input.value.trim();
+
+                    if (field.required && !value) {
+                        isValid = false;
+                        input.classList.add('invalid');
+                        if (errSpan) {
+                            errSpan.textContent = `${field.name} is required.`;
+                            errSpan.style.display = 'block';
+                        }
+                    } else if (value) {
+                        // Detailed validations matching register.js
+                        if (field.id === 'add_id_number') {
+                            if (!/^\d{4}-\d{4}$/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'ID Number must be in the format xxxx-xxxx';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'add_username') {
+                            if (value.length < 5 || value.length > 20) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Username must be between 5 and 20 characters';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else if (/[A-Z]/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'No capital letters allowed';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else if (/\s/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'No spaces allowed';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else if (!/^(?![0-9])/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Username cannot start with a number';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'add_email') {
+                            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                            if (!emailRegex.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Please enter a valid email address.';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'add_contact_number') {
+                            if (!/^(09\d{9}|(\+639)\d{9})$/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Please enter a valid contact number (09xxxxxxxxx).';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (['add_first_name', 'add_last_name', 'add_street_purok', 'add_barangay', 'add_city_municipal', 'add_province', 'add_country'].includes(field.id)) {
+                            if (value.length < 2 || value.length > 30) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = `${field.name} must be between 2 and 30 characters.`;
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'add_zipcode') {
+                            if (!/^\d{4}$/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Zip Code must be 4 digits.';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'add_birthday') {
+                            const birthDate = new Date(value);
+                            const today = new Date();
+                            let age = today.getFullYear() - birthDate.getFullYear();
+                            if (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
+                            if (age < 18) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'User must be at least 18 years old.';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'add_password') {
+                            if (value.length < 8 || value.length > 30) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Password must be between 8 and 30 characters';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else {
+                                const uppercaseCount = (value.match(/[A-Z]/g) || []).length;
+                                const lowercaseCount = (value.match(/[a-z]/g) || []).length;
+                                const numberCount = (value.match(/[0-9]/g) || []).length;
+                                const specialCount = (value.match(/[!@#$%^&*(),.?":{}|<>]/g) || []).length;
+                                
+                                if(uppercaseCount < 2) {
+                                    isValid = false;
+                                    input.classList.add('invalid');
+                                    if (errSpan) { errSpan.textContent = 'At least two (2) uppercase letters required'; errSpan.style.display = 'block'; }
+                                } else if(lowercaseCount < 2) {
+                                    isValid = false;
+                                    input.classList.add('invalid');
+                                    if (errSpan) { errSpan.textContent = 'At least two (2) lowercase letters required'; errSpan.style.display = 'block'; }
+                                } else if(numberCount < 2) {
+                                    isValid = false;
+                                    input.classList.add('invalid');
+                                    if (errSpan) { errSpan.textContent = 'At least two (2) numbers required'; errSpan.style.display = 'block'; }
+                                } else if(specialCount < 2) {
+                                    isValid = false;
+                                    input.classList.add('invalid');
+                                    if (errSpan) { errSpan.textContent = 'At least two (2) special characters required'; errSpan.style.display = 'block'; }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                if (isValid) {
+                    const formData = new FormData(addForm);
+                    formData.append('add_user', '1');
+                    
+                    fetch('users.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert(data.message);
+                            window.location.reload();
+                        } else {
+                            if (data.errors) {
+                                for (const field in data.errors) {
+                                    const errSpan = document.getElementById(`err-${field}`);
+                                    const input = document.getElementById(`add_${field}`);
+                                    if (errSpan) {
+                                        errSpan.textContent = data.errors[field];
+                                        errSpan.style.display = 'block';
+                                    }
+                                    if (input) input.classList.add('invalid');
+                                }
+                                const firstError = addForm.querySelector('.invalid');
+                                if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            } else if (data.message) {
+                                alert(data.message);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An unexpected error occurred. Please try again.');
+                    });
+                } else {
+                    const firstInvalid = addForm.querySelector('.invalid');
+                    if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+
+        // Form validation and submission for edit user
+        const editForm = document.getElementById('editForm');
+        if (editForm) {
+            editForm.setAttribute('novalidate', 'true');
+            editForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                let isValid = true;
+                
+                const fields = [
+                    { id: 'edit_id_number', errId: 'err-edit-id_number', name: 'ID Number', required: true },
+                    { id: 'edit_username', errId: 'err-edit-username', name: 'Username', required: true },
+                    { id: 'edit_email', errId: 'err-edit-email', name: 'Email Address', required: true },
+                    { id: 'edit_contact_number', errId: 'err-edit-contact_number', name: 'Contact Number', required: true },
+                    { id: 'edit_first_name', errId: 'err-edit-first_name', name: 'First Name', required: true },
+                    { id: 'edit_middle_name', errId: 'err-edit-middle_name', name: 'Middle Name', required: false },
+                    { id: 'edit_last_name', errId: 'err-edit-last_name', name: 'Last Name', required: true },
+                    { id: 'edit_extension_name', errId: 'err-edit-extension_name', name: 'Extension Name', required: false },
+                    { id: 'edit_birthday', errId: 'err-edit-birthday', name: 'Birthday', required: true },
+                    { id: 'edit_sex', errId: 'err-edit-sex', name: 'Sex', required: true },
+                    { id: 'edit_street_purok', errId: 'err-edit-street_purok', name: 'Street/Purok', required: true },
+                    { id: 'edit_barangay', errId: 'err-edit-barangay', name: 'Barangay', required: true },
+                    { id: 'edit_city_municipal', errId: 'err-edit-city_municipal', name: 'City/Municipal', required: true },
+                    { id: 'edit_province', errId: 'err-edit-province', name: 'Province', required: true },
+                    { id: 'edit_country', errId: 'err-edit-country', name: 'Country', required: true },
+                    { id: 'edit_zipcode', errId: 'err-edit-zipcode', name: 'Zipcode', required: true }
+                ];
+                
+                fields.forEach(field => {
+                    const input = document.getElementById(field.id);
+                    const errSpan = document.getElementById(field.errId);
+                    if (input) input.classList.remove('invalid');
+                    if (errSpan) {
+                        errSpan.textContent = '';
+                        errSpan.style.display = 'none';
+                    }
+                });
+                
+                // Client-side validation (Synchronized with register.js)
+                fields.forEach(field => {
+                    const input = document.getElementById(field.id);
+                    const errSpan = document.getElementById(field.errId);
+                    if (!input) return;
+                    const value = input.value.trim();
+
+                    if (field.required && !value) {
+                        isValid = false;
+                        input.classList.add('invalid');
+                        if (errSpan) {
+                            errSpan.textContent = `${field.name} is required.`;
+                            errSpan.style.display = 'block';
+                        }
+                    } else if (value) {
+                        // Detailed validations matching register.js
+                        if (field.id === 'edit_id_number') {
+                            if (!/^\d{4}-\d{4}$/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'ID Number must be in the format xxxx-xxxx';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'edit_username') {
+                            if (value.length < 5 || value.length > 20) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Username must be between 5 and 20 characters';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else if (/[A-Z]/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'No capital letters allowed';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else if (/\s/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'No spaces allowed';
+                                    errSpan.style.display = 'block';
+                                }
+                            } else if (!/^(?![0-9])/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Username cannot start with a number';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'edit_email') {
+                            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                            if (!emailRegex.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Please enter a valid email address.';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'edit_contact_number') {
+                            if (!/^(09\d{9}|(\+639)\d{9})$/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Please enter a valid contact number (09xxxxxxxxx).';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (['edit_first_name', 'edit_last_name', 'edit_street_purok', 'edit_barangay', 'edit_city_municipal', 'edit_province', 'edit_country'].includes(field.id)) {
+                            if (value.length < 2 || value.length > 30) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = `${field.name} must be between 2 and 30 characters.`;
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'edit_zipcode') {
+                            if (!/^\d{4}$/.test(value)) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'Zip Code must be 4 digits.';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        } else if (field.id === 'edit_birthday') {
+                            const birthDate = new Date(value);
+                            const today = new Date();
+                            let age = today.getFullYear() - birthDate.getFullYear();
+                            if (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
+                            if (age < 18) {
+                                isValid = false;
+                                input.classList.add('invalid');
+                                if (errSpan) {
+                                    errSpan.textContent = 'User must be at least 18 years old.';
+                                    errSpan.style.display = 'block';
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                if (isValid) {
+                    const formData = new FormData(editForm);
+                    formData.append('edit_user', '1');
+                    
+                    fetch('users.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert(data.message);
+                            window.location.reload();
+                        } else {
+                            if (data.errors) {
+                                for (const field in data.errors) {
+                                    const errSpan = document.getElementById(`err-edit-${field}`);
+                                    const input = document.getElementById(`edit_${field}`);
+                                    if (errSpan) {
+                                        errSpan.textContent = data.errors[field];
+                                        errSpan.style.display = 'block';
+                                    }
+                                    if (input) input.classList.add('invalid');
+                                }
+                                const firstError = editForm.querySelector('.invalid');
+                                if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            } else if (data.message) {
+                                alert(data.message);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An unexpected error occurred. Please try again.');
+                    });
+                } else {
+                    const firstInvalid = editForm.querySelector('.invalid');
+                    if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
         }
@@ -2318,19 +3022,13 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         const editModal = document.getElementById('editModal');
         const viewModal = document.getElementById('viewModal');
         const deleteModal = document.getElementById('deleteModal');
+        const statusModal = document.getElementById('statusRequestModal');
         
-        if (event.target == addModal) {
-            closeAddModal();
-        }
-        if (event.target == editModal) {
-            closeEditModal();
-        }
-        if (event.target == viewModal) {
-            closeViewModal();
-        }
-        if (event.target == deleteModal) {
-            hideDeleteModal();
-        }
+        if (event.target == addModal) closeAddModal();
+        if (event.target == editModal) closeEditModal();
+        if (event.target == viewModal) closeViewModal();
+        if (event.target == deleteModal) hideDeleteModal();
+        if (event.target == statusModal) hideStatusRequestModal();
     }
 
     // Handle ESC key
@@ -2340,6 +3038,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             closeEditModal();
             closeViewModal();
             hideDeleteModal();
+            hideStatusRequestModal();
             
             const sidebar = document.getElementById('sidebar');
             if (sidebar.classList.contains('mobile-open')) {
@@ -2588,4 +3287,4 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
     </div>
 </div>
 </body>
-</html>
+</html> 
