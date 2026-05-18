@@ -19,8 +19,8 @@ if (!isset($_GET['id'])) {
 $admin_id = (int)$_GET['id'];
 
 try {
-    $query = "SELECT u.user_id as admin_id, u.username, u.email, u.first_name, u.last_name, 
-                     u.middle_name, u.extension_name, u.id_number, u.birthday,
+    $query = "SELECT u.user_id as admin_id, u.username, u.email, u.contact_number, u.first_name, u.last_name, 
+                     u.middle_name, u.extension_name, u.id_number, u.birthday, u.age, u.permissions,
                      u.street_purok, u.barangay, u.city_municipal, u.province, u.country, u.zipcode,
                      r.role_name as role, u.role_id, u.is_active 
               FROM users u

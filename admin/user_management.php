@@ -39,15 +39,19 @@ $error = '';
 
 // Handle Add Admin
 if (isset($_POST['add_admin'])) {
+    $is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     $username = $_POST['username'] ?? '';
     $password = !empty($_POST['password']) ? $_POST['password'] : 'FFll24()';
     $email = $_POST['email'] ?? '';
+    $contact_number = $_POST['contact_number'] ?? '';
     $first_name = $_POST['first_name'] ?? '';
     $last_name = $_POST['last_name'] ?? '';
     $middle_name = $_POST['middle_name'] ?? '';
     $suffix = $_POST['suffix'] ?? '';
     $id_number = $_POST['id_number'] ?? '';
     $birthday = $_POST['birthday'] ?? '';
+    $age = $_POST['age'] ?? null;
     $street_purok = $_POST['street_purok'] ?? '';
     $barangay = $_POST['barangay'] ?? '';
     $province = $_POST['province'] ?? '';
@@ -60,44 +64,140 @@ if (isset($_POST['add_admin'])) {
     $permissions_json = json_encode($permissions_array);
 
     // Password validation logic
-    $password_pattern = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};\':"\\\\|,.<>\/?]).{8,}$/';
+    $errors = [];
     
-    if (empty($username) || empty($password) || empty($email) || empty($first_name) || empty($last_name)) {
-        $error = "Please fill in all required fields.";
+    // ID Number Validation
+    if (empty($id_number)) {
+        $errors['id_number'] = "ID number is required.";
+    } elseif (!preg_match('/^\d{4}-\d{4}$/', $id_number)) {
+        $errors['id_number'] = "ID Number must be in the format xxxx-xxxx.";
+    }
+
+    // Username Validation
+    if (empty($username)) {
+        $errors['username'] = "Username is required.";
+    } elseif (strlen($username) < 5 || strlen($username) > 20) {
+        $errors['username'] = "Username must be between 5 and 20 characters.";
+    } elseif (preg_match('/[A-Z]/', $username)) {
+        $errors['username'] = "No capital letters allowed.";
+    } elseif (preg_match('/\s/', $username)) {
+        $errors['username'] = "No spaces allowed.";
+    } elseif (preg_match('/^[0-9]/', $username)) {
+        $errors['username'] = "Username cannot start with a number.";
+    }
+
+    // Email Validation
+    if (empty($email)) {
+        $errors['email'] = "Email is required.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Invalid email format.";
-    } elseif (!preg_match($password_pattern, $password)) {
-        $error = "Password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters.";
+        $errors['email'] = "Invalid email format.";
+    }
+
+    // Contact Number Validation
+    if (empty($contact_number)) {
+        $errors['contact_number'] = "Contact number is required.";
+    } elseif (!preg_match('/^09\d{9}$/', $contact_number)) {
+        $errors['contact_number'] = "Invalid format (ex. 09123456789).";
+    }
+
+    // First Name Validation
+    if (empty($first_name)) {
+        $errors['first_name'] = "First Name is required.";
+    } elseif (strlen($first_name) < 2 || strlen($first_name) > 30) {
+        $errors['first_name'] = "First Name must be between 2 and 30 characters.";
+    }
+
+    // Last Name Validation
+    if (empty($last_name)) {
+        $errors['last_name'] = "Last Name is required.";
+    } elseif (strlen($last_name) < 2 || strlen($last_name) > 30) {
+        $errors['last_name'] = "Last Name must be between 2 and 30 characters.";
+    }
+
+    // Birthday & Age Validation
+    if (empty($birthday)) {
+        $errors['birthday'] = "Birthday is required.";
     } else {
+        if (empty($age)) {
+            $age = (new DateTime())->diff(new DateTime($birthday))->y;
+        }
+        if ($age < 18) {
+            $errors['birthday'] = "You must be at least 18 years old.";
+            $errors['age'] = "You must be at least 18 years old.";
+        }
+    }
+
+    // Address Validations
+    if (empty($street_purok)) $errors['street_purok'] = "Street/Purok is required.";
+    elseif (strlen($street_purok) < 2 || strlen($street_purok) > 30) $errors['street_purok'] = "Street/Purok must be between 2 and 30 characters.";
+
+    if (empty($barangay)) $errors['barangay'] = "Barangay is required.";
+    elseif (strlen($barangay) < 2 || strlen($barangay) > 30) $errors['barangay'] = "Barangay must be between 2 and 30 characters.";
+
+    if (empty($city_municipal)) $errors['city_municipal'] = "City/Municipal is required.";
+    elseif (strlen($city_municipal) < 2 || strlen($city_municipal) > 30) $errors['city_municipal'] = "City/Municipal must be between 2 and 30 characters.";
+
+    if (empty($province)) $errors['province'] = "Province is required.";
+    elseif (strlen($province) < 2 || strlen($province) > 30) $errors['province'] = "Province must be between 2 and 30 characters.";
+
+    if (empty($country)) $errors['country'] = "Country is required.";
+    elseif (strlen($country) < 2 || strlen($country) > 30) $errors['country'] = "Country must be between 2 and 30 characters.";
+
+    if (empty($zipcode)) $errors['zipcode'] = "Zip Code is required.";
+    elseif (!preg_match('/^\d{4}$/', $zipcode)) $errors['zipcode'] = "Zip Code must be 4 digits.";
+
+    // Password Validation
+    if (empty($password)) {
+        $errors['password'] = "Password is required.";
+    } elseif (strlen($password) < 8 || strlen($password) > 30) {
+        $errors['password'] = "Password must be between 8 and 30 characters.";
+    } else {
+        $uc = preg_match_all('/[A-Z]/', $password);
+        $lc = preg_match_all('/[a-z]/', $password);
+        $num = preg_match_all('/[0-9]/', $password);
+        $sc = preg_match_all('/[!@#$%^&*(),.?":{}|<>]/', $password);
+        
+        if ($uc < 2) $errors['password'] = "Password must contain at least two (2) uppercase letters.";
+        elseif ($lc < 2) $errors['password'] = "Password must contain at least two (2) lowercase letters.";
+        elseif ($num < 2) $errors['password'] = "Password must contain at least two (2) numbers.";
+        elseif ($sc < 2) $errors['password'] = "Password must contain at least two (2) special characters.";
+    }
+
+    if (empty($errors)) {
         try {
-            // Check if username or email already exists in users table
-            $check_query = "SELECT COUNT(*) FROM users WHERE username = :username OR email = :email";
+            // Check if username, email, contact_number, or id_number already exists in users table
+            $check_query = "SELECT username, email, contact_number, id_number FROM users WHERE username = :username OR email = :email OR contact_number = :contact_number OR id_number = :id_number";
             $check_stmt = $conn->prepare($check_query);
-            $check_stmt->execute([':username' => $username, ':email' => $email]);
-            if ($check_stmt->fetchColumn() > 0) {
-                $error = "Username or email already exists";
+            $check_stmt->execute([':username' => $username, ':email' => $email, ':contact_number' => $contact_number, ':id_number' => $id_number]);
+            $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($existing) {
+                if ($existing['id_number'] === $id_number) $errors['id_number'] = "ID Number already exists";
+                if ($existing['username'] === $username) $errors['username'] = "Username already exists";
+                if ($existing['email'] === $email) $errors['email'] = "Email already exists";
+                if ($existing['contact_number'] === $contact_number) $errors['contact_number'] = "Contact Number already exists";
             } else {
                 // Insert new admin into users table with password hashing
                 $hashed_password = password_hash($password, PASSWORD_BCRYPT);
                 
+                // Calculate age if not provided
+                if (empty($age) && !empty($birthday)) {
+                    $age = (new DateTime())->diff(new DateTime($birthday))->y;
+                }
+                
                 $insert_query = "INSERT INTO users (
                     username, email, password, first_name, last_name, 
-                    middle_name, extension_name, id_number, birthday,
+                    middle_name, extension_name, id_number, contact_number, birthday, age,
                     street_purok, barangay, province, city_municipal, country, zipcode,
                     role_id, permissions, is_active, created_at, created_by
                 ) VALUES (
                     :username, :email, :password, :first_name, :last_name,
-                    :middle_name, :extension_name, :id_number, :birthday,
+                    :middle_name, :extension_name, :id_number, :contact_number, :birthday, :age,
                     :street_purok, :barangay, :province, :city_municipal, :country, :zipcode,
                     :role_id, :permissions, :is_active, NOW(), :created_by
                 )";
                 
                 $new_role_id = ($admin_role === 'super_admin') ? 1 : 2;
-                
-                // Set default permissions for admin or super admin
-                $permissions = $admin_role === 'super_admin' 
-                    ? '["all"]' 
-                    : '["manage_users", "view_logs"]';
                 
                 $insert_stmt = $conn->prepare($insert_query);
                 $insert_stmt->execute([
@@ -109,7 +209,9 @@ if (isset($_POST['add_admin'])) {
                     ':middle_name' => $middle_name,
                     ':extension_name' => $suffix,
                     ':id_number' => $id_number,
+                    ':contact_number' => $contact_number,
                     ':birthday' => !empty($birthday) ? $birthday : null,
+                    ':age' => $age,
                     ':street_purok' => $street_purok,
                     ':barangay' => $barangay,
                     ':province' => $province,
@@ -136,6 +238,7 @@ if (isset($_POST['add_admin'])) {
                         'email' => $email, 
                         'role_id' => $new_role_id,
                         'id_number' => $id_number,
+                        'contact_number' => $contact_number,
                         'first_name' => $first_name,
                         'middle_name' => $middle_name,
                         'last_name' => $last_name,
@@ -152,25 +255,45 @@ if (isset($_POST['add_admin'])) {
                     ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
                 ]);
 
+                if ($is_ajax) {
+                    echo json_encode(['status' => 'success', 'message' => 'Admin added successfully']);
+                    exit;
+                }
                 $message = "Admin added successfully";
             }
         } catch (PDOException $e) {
+            if ($is_ajax) {
+                echo json_encode(['status' => 'error', 'message' => "Database error: " . $e->getMessage()]);
+                exit;
+            }
             $error = "Database error: " . $e->getMessage();
         }
+    }
+    
+    if (!empty($errors)) {
+        if ($is_ajax) {
+            echo json_encode(['status' => 'error', 'errors' => $errors]);
+            exit;
+        }
+        $error = implode("<br>", $errors);
     }
 }
 
 // Handle Edit Admin
 if (isset($_POST['edit_admin'])) {
+    $is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
     $edit_user_id = (int)$_POST['admin_id']; // Using 'admin_id' from form but treating as user_id
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
+    $contact_number = $_POST['contact_number'] ?? '';
     $first_name = $_POST['first_name'] ?? '';
     $last_name = $_POST['last_name'] ?? '';
     $middle_name = $_POST['middle_name'] ?? '';
     $suffix = $_POST['suffix'] ?? '';
     $id_number = $_POST['id_number'] ?? '';
     $birthday = $_POST['birthday'] ?? '';
+    $age = $_POST['age'] ?? null;
     $street_purok = $_POST['street_purok'] ?? '';
     $barangay = $_POST['barangay'] ?? '';
     $province = $_POST['province'] ?? '';
@@ -182,28 +305,124 @@ if (isset($_POST['edit_admin'])) {
     $new_password = $_POST['new_password'] ?? '';
     $permissions_array = $_POST['permissions'] ?? [];
     $permissions_json = json_encode($permissions_array);
-    // Password validation for edit if new password is provided
-    $password_pattern = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};\':"\\\\|,.<>\/?]).{8,}$/';
+    $errors = [];
 
-    if (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
-        $error = "Please fill in all required fields.";
+    // ID Number Validation
+    if (empty($id_number)) {
+        $errors['id_number'] = "ID number is required.";
+    } elseif (!preg_match('/^\d{4}-\d{4}$/', $id_number)) {
+        $errors['id_number'] = "ID Number must be in the format xxxx-xxxx.";
+    }
+
+    // Username Validation
+    if (empty($username)) {
+        $errors['username'] = "Username is required.";
+    } elseif (strlen($username) < 5 || strlen($username) > 20) {
+        $errors['username'] = "Username must be between 5 and 20 characters.";
+    } elseif (preg_match('/[A-Z]/', $username)) {
+        $errors['username'] = "No capital letters allowed.";
+    } elseif (preg_match('/\s/', $username)) {
+        $errors['username'] = "No spaces allowed.";
+    } elseif (preg_match('/^[0-9]/', $username)) {
+        $errors['username'] = "Username cannot start with a number.";
+    }
+
+    // Email Validation
+    if (empty($email)) {
+        $errors['email'] = "Email is required.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Invalid email format.";
-    } elseif (!empty($new_password) && !preg_match($password_pattern, $new_password)) {
-        $error = "New password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters.";
+        $errors['email'] = "Invalid email format.";
+    }
+
+    // Contact Number Validation
+    if (empty($contact_number)) {
+        $errors['contact_number'] = "Contact number is required.";
+    } elseif (!preg_match('/^09\d{9}$/', $contact_number)) {
+        $errors['contact_number'] = "Invalid format (ex. 09123456789).";
+    }
+
+    // First Name Validation
+    if (empty($first_name)) {
+        $errors['first_name'] = "First Name is required.";
+    } elseif (strlen($first_name) < 2 || strlen($first_name) > 30) {
+        $errors['first_name'] = "First Name must be between 2 and 30 characters.";
+    }
+
+    // Last Name Validation
+    if (empty($last_name)) {
+        $errors['last_name'] = "Last Name is required.";
+    } elseif (strlen($last_name) < 2 || strlen($last_name) > 30) {
+        $errors['last_name'] = "Last Name must be between 2 and 30 characters.";
+    }
+
+    // Birthday & Age Validation
+    if (empty($birthday)) {
+        $errors['birthday'] = "Birthday is required.";
     } else {
+        if (empty($age)) {
+            $age = (new DateTime())->diff(new DateTime($birthday))->y;
+        }
+        if ($age < 18) {
+            $errors['birthday'] = "You must be at least 18 years old.";
+            $errors['age'] = "You must be at least 18 years old.";
+        }
+    }
+
+    // Address Validations
+    if (empty($street_purok)) $errors['street_purok'] = "Street/Purok is required.";
+    elseif (strlen($street_purok) < 2 || strlen($street_purok) > 30) $errors['street_purok'] = "Street/Purok must be between 2 and 30 characters.";
+
+    if (empty($barangay)) $errors['barangay'] = "Barangay is required.";
+    elseif (strlen($barangay) < 2 || strlen($barangay) > 30) $errors['barangay'] = "Barangay must be between 2 and 30 characters.";
+
+    if (empty($city_municipal)) $errors['city_municipal'] = "City/Municipal is required.";
+    elseif (strlen($city_municipal) < 2 || strlen($city_municipal) > 30) $errors['city_municipal'] = "City/Municipal must be between 2 and 30 characters.";
+
+    if (empty($province)) $errors['province'] = "Province is required.";
+    elseif (strlen($province) < 2 || strlen($province) > 30) $errors['province'] = "Province must be between 2 and 30 characters.";
+
+    if (empty($country)) $errors['country'] = "Country is required.";
+    elseif (strlen($country) < 2 || strlen($country) > 30) $errors['country'] = "Country must be between 2 and 30 characters.";
+
+    if (empty($zipcode)) $errors['zipcode'] = "Zip Code is required.";
+    elseif (!preg_match('/^\d{4}$/', $zipcode)) $errors['zipcode'] = "Zip Code must be 4 digits.";
+
+    // Password Validation (only if editing password)
+    if (!empty($new_password)) {
+        if (strlen($new_password) < 8 || strlen($new_password) > 30) {
+            $errors['new_password'] = "Password must be between 8 and 30 characters.";
+        } else {
+            $uc = preg_match_all('/[A-Z]/', $new_password);
+            $lc = preg_match_all('/[a-z]/', $new_password);
+            $num = preg_match_all('/[0-9]/', $new_password);
+            $sc = preg_match_all('/[!@#$%^&*(),.?":{}|<>]/', $new_password);
+            
+            if ($uc < 2) $errors['new_password'] = "Password must contain at least two (2) uppercase letters.";
+            elseif ($lc < 2) $errors['new_password'] = "Password must contain at least two (2) lowercase letters.";
+            elseif ($num < 2) $errors['new_password'] = "Password must contain at least two (2) numbers.";
+            elseif ($sc < 2) $errors['new_password'] = "Password must contain at least two (2) special characters.";
+        }
+    }
+
+    if (empty($errors)) {
         try {
-            // Check if username or email already exists for other users
-            $check_query = "SELECT COUNT(*) FROM users WHERE (username = :username OR email = :email) AND user_id != :user_id";
+            // Check if username, email, contact_number, or id_number already exists for other users
+            $check_query = "SELECT username, email, contact_number, id_number FROM users WHERE (username = :username OR email = :email OR contact_number = :contact_number OR id_number = :id_number) AND user_id != :user_id";
             $check_stmt = $conn->prepare($check_query);
             $check_stmt->execute([
                 ':username' => $username,
                 ':email' => $email,
+                ':contact_number' => $contact_number,
+                ':id_number' => $id_number,
                 ':user_id' => $edit_user_id
             ]);
+            $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($check_stmt->fetchColumn() > 0) {
-                $error = "Username or email already exists for another user.";
+            if ($existing) {
+                if ($existing['id_number'] === $id_number) $errors['id_number'] = "ID Number already exists for another user.";
+                if ($existing['username'] === $username) $errors['username'] = "Username already exists for another user.";
+                if ($existing['email'] === $email) $errors['email'] = "Email already exists for another user.";
+                if ($existing['contact_number'] === $contact_number) $errors['contact_number'] = "Contact Number already exists for another user.";
             } else {
                     // Get old data for logging
                     $old_data_query = "SELECT * FROM users WHERE user_id = :user_id";
@@ -212,10 +431,15 @@ if (isset($_POST['edit_admin'])) {
                     $old_data = $old_data_stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$old_data) {
-                        $error = "User not found";
+                        $errors['general'] = "User not found";
                     } elseif ($old_data['role_id'] == 1 && $admin_role === 'admin' && $edit_user_id != $admin_id) {
-                        $error = "You cannot demote another Super Admin. You can only demote yourself.";
+                        $errors['admin_role'] = "You cannot demote another Super Admin. You can only demote yourself.";
                     } else {
+                        // Calculate age if not provided
+                        if (empty($age) && !empty($birthday)) {
+                            $age = (new DateTime())->diff(new DateTime($birthday))->y;
+                        }
+
                         // Build update query
                         $update_fields = [
                             'username = :username',
@@ -225,7 +449,9 @@ if (isset($_POST['edit_admin'])) {
                             'middle_name = :middle_name',
                             'extension_name = :extension_name',
                             'id_number = :id_number',
+                            'contact_number = :contact_number',
                             'birthday = :birthday',
+                            'age = :age',
                             'street_purok = :street_purok',
                             'barangay = :barangay',
                             'province = :province',
@@ -248,7 +474,9 @@ if (isset($_POST['edit_admin'])) {
                             ':middle_name' => $middle_name,
                             ':extension_name' => $suffix,
                             ':id_number' => $id_number,
+                            ':contact_number' => $contact_number,
                             ':birthday' => !empty($birthday) ? $birthday : null,
+                            ':age' => $age,
                             ':street_purok' => $street_purok,
                             ':barangay' => $barangay,
                             ':province' => $province,
@@ -287,6 +515,16 @@ if (isset($_POST['edit_admin'])) {
                             ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
                         ]);
 
+                        if ($is_ajax) {
+                            $redirect = null;
+                            if ($edit_user_id == $admin_id && !$is_active) {
+                                session_destroy();
+                                $redirect = '../admin/login.php?msg=account_deactivated';
+                            }
+                            echo json_encode(['status' => 'success', 'message' => 'Admin updated successfully', 'redirect' => $redirect]);
+                            exit;
+                        }
+                        
                         $message = "Admin updated successfully";
 
                         // If the current admin deactivated themselves, logout
@@ -298,8 +536,20 @@ if (isset($_POST['edit_admin'])) {
                     }
                 }
             } catch (PDOException $e) {
+                if ($is_ajax) {
+                    echo json_encode(['status' => 'error', 'message' => "Database error: " . $e->getMessage()]);
+                    exit;
+                }
                 $error = "Database error: " . $e->getMessage();
         }
+    }
+    
+    if (!empty($errors)) {
+        if ($is_ajax) {
+            echo json_encode(['status' => 'error', 'errors' => $errors]);
+            exit;
+        }
+        $error = implode("<br>", $errors);
     }
 }
 
@@ -1849,6 +2099,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <div class="field-error"></div>
                         </div>
                         <div class="form-group">
+                            <label>Contact Number *</label>
+                            <input type="text" name="contact_number" placeholder="09xxxxxxxxx" required>
+                            <div class="field-error"></div>
+                        </div>
+                        <div class="form-group">
                             <label>First Name *</label>
                             <input type="text" name="first_name" required>
                             <div class="field-error"></div>
@@ -1875,7 +2130,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         </div>
                         <div class="form-group">
                             <label>Birthday *</label>
-                            <input type="date" name="birthday" required>
+                            <input type="date" name="birthday" required onchange="calculateAge(this.value, 'add')">
+                            <div class="field-error"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Age</label>
+                            <input type="number" name="age" id="add_age" readonly style="background: #e9ecef; cursor: not-allowed; border-color: #cbd5e0;">
                             <div class="field-error"></div>
                         </div>
                         <div class="form-group full-width" style="margin: 1rem 0 0.5rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3rem;">
@@ -1949,12 +2209,9 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             </div>
                         </div>
                         <div class="form-group full-width checkbox-group">
-                            <input type="checkbox" name="is_active" id="is_active_add" checked>
+                            <input type="checkbox" name="is_active" id="is_active_add">
                             <label for="is_active_add">Active</label>
                         </div>
-                    </div>
-                    <div id="password-requirements" style="font-size: 10px; color: #666; margin-top: 10px; grid-column: span 4;">
-                        Password requirement: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -2008,6 +2265,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                             <div class="field-error"></div>
                         </div>
                         <div class="form-group">
+                            <label>Contact Number *</label>
+                            <input type="text" name="contact_number" id="edit_contact_number" placeholder="09xxxxxxxxx" required>
+                            <div class="field-error"></div>
+                        </div>
+                        <div class="form-group">
                             <label>First Name *</label>
                             <input type="text" name="first_name" id="edit_first_name" required>
                             <div class="field-error"></div>
@@ -2034,7 +2296,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         </div>
                         <div class="form-group">
                             <label>Birthday *</label>
-                            <input type="date" name="birthday" id="edit_birthday" required>
+                            <input type="date" name="birthday" id="edit_birthday" required onchange="calculateAge(this.value, 'edit')">
+                            <div class="field-error"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Age</label>
+                            <input type="number" name="age" id="edit_age" readonly style="background: #e9ecef; cursor: not-allowed; border-color: #cbd5e0;">
                             <div class="field-error"></div>
                         </div>
                         <div class="form-group full-width" style="margin: 1rem 0 0.5rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.3rem;">
@@ -2184,6 +2451,74 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             }
         });
 
+        // Real-time duplicate checking
+        function attachDuplicateCheckers() {
+            const fieldsToCheck = ['username', 'email', 'id_number', 'contact_number'];
+            
+            // Add Admin Form
+            const addForm = document.getElementById('addAdminForm');
+            if (addForm) {
+                fieldsToCheck.forEach(field => {
+                    const input = addForm.querySelector(`input[name="${field}"]`);
+                    if (input) {
+                        input.addEventListener('blur', function() {
+                            checkDuplicate(field, input.value, input, 0);
+                        });
+                    }
+                });
+            }
+
+            // Edit Admin Form
+            const editForm = document.getElementById('editForm');
+            if (editForm) {
+                fieldsToCheck.forEach(field => {
+                    const input = editForm.querySelector(`input[name="${field}"]`);
+                    if (input) {
+                        input.addEventListener('blur', function() {
+                            const adminId = document.getElementById('edit_admin_id').value;
+                            checkDuplicate(field, input.value, input, adminId);
+                        });
+                    }
+                });
+            }
+        }
+
+        function checkDuplicate(field, value, inputElement, excludeId = 0) {
+            if (!value.trim()) return;
+            
+            const formData = new FormData();
+            formData.append('field', field);
+            formData.append('value', value);
+            if (excludeId > 0) formData.append('exclude_id', excludeId);
+
+            fetch('check_duplicate.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                const group = inputElement.closest('.form-group');
+                const errorDiv = group.querySelector('.field-error');
+                if (data.exists) {
+                    group.classList.add('has-error');
+                    let fieldName = field.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    if (field === 'id_number') fieldName = 'ID Number';
+                    errorDiv.textContent = `${fieldName} already exists.`;
+                    inputElement.dataset.exists = "true";
+                } else {
+                    inputElement.dataset.exists = "false";
+                    // Only clear if the current error is about duplicates
+                    if (errorDiv.textContent.includes('already exists')) {
+                        group.classList.remove('has-error');
+                        errorDiv.textContent = '';
+                    }
+                }
+            })
+            .catch(err => console.error('Duplicate check error:', err));
+        }
+
+        document.addEventListener('DOMContentLoaded', attachDuplicateCheckers);
+
         // Modal functions
         function openAddModal() {
             document.getElementById('addModal').style.display = 'flex';
@@ -2210,12 +2545,18 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                     document.getElementById('edit_admin_id').value = data.admin_id || '';
                     document.getElementById('edit_username').value = data.username || '';
                     document.getElementById('edit_email').value = data.email || '';
+                    document.getElementById('edit_contact_number').value = data.contact_number || '';
                     document.getElementById('edit_first_name').value = data.first_name || '';
                     document.getElementById('edit_last_name').value = data.last_name || '';
                     document.getElementById('edit_middle_name').value = data.middle_name || '';
                     document.getElementById('edit_suffix').value = data.extension_name || '';
                     document.getElementById('edit_id_number').value = data.id_number || '';
                     document.getElementById('edit_birthday').value = data.birthday || '';
+                    if (data.age) {
+                        document.getElementById('edit_age').value = data.age;
+                    } else if (data.birthday) {
+                        calculateAge(data.birthday, 'edit');
+                    }
                     document.getElementById('edit_street_purok').value = data.street_purok || '';
                     document.getElementById('edit_barangay').value = data.barangay || '';
                     document.getElementById('edit_province').value = data.province || '';
@@ -2308,39 +2649,156 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
             let isValid = true;
             let firstErrorField = null;
 
-            // Basic required check
-            const requiredFields = form.querySelectorAll('[required]');
-            for (let field of requiredFields) {
-                if (!field.value.trim()) {
-                    const group = field.closest('.form-group');
+            const setError = (field, message) => {
+                if (!field) return;
+                const group = field.closest('.form-group');
+                if (group) {
                     group.classList.add('has-error');
-                    group.querySelector('.field-error').textContent = `${field.previousElementSibling.textContent.replace('*', '').trim()} is required.`;
-                    if (!firstErrorField) firstErrorField = field;
-                    isValid = false;
+                    const errorSpan = group.querySelector('.field-error');
+                    if (errorSpan) errorSpan.textContent = message;
                 }
+                if (!firstErrorField) firstErrorField = field;
+                isValid = false;
+            };
+
+            // Common fields for both forms
+            const idField = form.querySelector('input[name="id_number"]');
+            const usernameField = form.querySelector('input[name="username"]');
+            const emailField = form.querySelector('input[name="email"]');
+            const contactField = form.querySelector('input[name="contact_number"]');
+            const fnameField = form.querySelector('input[name="first_name"]');
+            const lnameField = form.querySelector('input[name="last_name"]');
+            const birthdayField = form.querySelector('input[name="birthday"]');
+            const ageField = form.querySelector('input[name="age"]');
+            const streetField = form.querySelector('input[name="street_purok"]');
+            const barangayField = form.querySelector('input[name="barangay"]');
+            const cityField = form.querySelector('input[name="city_municipal"]');
+            const provinceField = form.querySelector('input[name="province"]');
+            const countryField = form.querySelector('input[name="country"]');
+            const zipcodeField = form.querySelector('input[name="zipcode"]');
+
+            if (idField) {
+                const val = idField.value.trim();
+                if (!val) setError(idField, 'ID number is required');
+                else if (!/^\d{4}-\d{4}$/.test(val)) setError(idField, 'ID Number must be in the format xxxx-xxxx');
+                else if (idField.dataset.exists === "true") setError(idField, 'ID Number already exists.');
             }
-            
-            // Password strength check (only if not empty for edit)
-            if (passwordField && password) {
-                const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
-                if (!passwordPattern.test(password)) {
-                    const group = passwordField.closest('.form-group');
-                    group.classList.add('has-error');
-                    group.querySelector('.field-error').textContent = "8+ chars, upper, lower, number, special.";
-                    if (!firstErrorField) firstErrorField = passwordField;
-                    isValid = false;
+
+            if (usernameField) {
+                const val = usernameField.value.trim();
+                if (!val) setError(usernameField, 'Username is required');
+                else if (val.length < 5 || val.length > 20) setError(usernameField, 'Username must be between 5 and 20 characters');
+                else if (/[A-Z]/.test(val)) setError(usernameField, 'No capital letters allowed');
+                else if (/\s/.test(val)) setError(usernameField, 'No spaces allowed');
+                else if (/^(?![0-9])/.test(val) === false) setError(usernameField, 'Username cannot start with a number');
+                else if (usernameField.dataset.exists === "true") setError(usernameField, 'Username already exists.');
+            }
+
+            if (emailField) {
+                const val = emailField.value.trim();
+                if (!val) setError(emailField, 'Email is required');
+                else if (!/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val)) setError(emailField, 'Please enter a valid email address');
+                else if (emailField.dataset.exists === "true") setError(emailField, 'Email already exists.');
+            }
+
+            if (contactField) {
+                const val = contactField.value.trim();
+                if (!val) setError(contactField, 'Contact number is required');
+                else if (!/^09\d{9}$/.test(val)) setError(contactField, 'Invalid format (ex. 09123456789)');
+                else if (contactField.dataset.exists === "true") setError(contactField, 'Contact Number already exists.');
+            }
+
+            if (fnameField) {
+                const val = fnameField.value.trim();
+                if (!val) setError(fnameField, 'First Name is required');
+                else if (val.length <= 1 || val.length >= 30) setError(fnameField, 'First Name must be between 2 and 30 characters');
+            }
+
+            if (lnameField) {
+                const val = lnameField.value.trim();
+                if (!val) setError(lnameField, 'Last Name is required');
+                else if (val.length <= 1 || val.length >= 30) setError(lnameField, 'Last Name must be between 2 and 30 characters');
+            }
+
+            if (birthdayField) {
+                if (!birthdayField.value.trim()) {
+                    setError(birthdayField, 'Birthday is required');
+                } else {
+                    const birthDate = new Date(birthdayField.value.trim());
+                    const today = new Date();
+                    let ageCalcu = today.getFullYear() - birthDate.getFullYear();
+                    const monthDiff = today.getMonth() - birthDate.getMonth();
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                        ageCalcu--;
+                    }
+                    if (ageCalcu < 18) {
+                        setError(birthdayField, 'You must be at least 18 years old');
+                        if (ageField) setError(ageField, 'You must be at least 18 years old');
+                    }
                 }
             }
 
-            // Confirm password check
+            if (streetField) {
+                const val = streetField.value.trim();
+                if (!val) setError(streetField, 'Street/Purok is required');
+                else if (val.length < 2 || val.length > 30) setError(streetField, 'Street/Purok must be between 2 and 30 characters');
+            }
+
+            if (barangayField) {
+                const val = barangayField.value.trim();
+                if (!val) setError(barangayField, 'Barangay is required');
+                else if (val.length < 2 || val.length > 30) setError(barangayField, 'Barangay must be between 2 and 30 characters');
+            }
+
+            if (cityField) {
+                const val = cityField.value.trim();
+                if (!val) setError(cityField, 'City/Municipal is required');
+                else if (val.length < 2 || val.length > 30) setError(cityField, 'City/Municipal must be between 2 and 30 characters');
+            }
+
+            if (provinceField) {
+                const val = provinceField.value.trim();
+                if (!val) setError(provinceField, 'Province is required');
+                else if (val.length < 2 || val.length > 30) setError(provinceField, 'Province must be between 2 and 30 characters');
+            }
+
+            if (countryField) {
+                const val = countryField.value.trim();
+                if (!val) setError(countryField, 'Country is required');
+                else if (val.length < 2 || val.length > 30) setError(countryField, 'Country must be between 2 and 30 characters');
+            }
+
+            if (zipcodeField) {
+                const val = zipcodeField.value.trim();
+                if (!val) setError(zipcodeField, 'Zip Code is required');
+                else if (!/^\d{4}$/.test(val)) setError(zipcodeField, 'Zip Code must be 4 digits');
+            }
+
+            // Password Validation
+            if (passwordField && password) {
+                if (password.length < 8 || password.length > 30) {
+                    setError(passwordField, 'Password must be between 8 and 30 characters');
+                } else {
+                    const uppercaseCount = (password.match(/[A-Z]/g) || []).length;
+                    const lowercaseCount = (password.match(/[a-z]/g) || []).length;
+                    const numberCount = (password.match(/[0-9]/g) || []).length;
+                    const specialCount = (password.match(/[!@#$%^&*(),.?":{}|<>]/g) || []).length;
+                    
+                    if(uppercaseCount < 2) setError(passwordField, 'Password must contain at least two (2) uppercase letters');
+                    else if(lowercaseCount < 2) setError(passwordField, 'Password must contain at least two (2) lowercase letters');
+                    else if(numberCount < 2) setError(passwordField, 'Password must contain at least two (2) numbers');
+                    else if(specialCount < 2) setError(passwordField, 'Password must contain at least two (2) special characters');
+                }
+            } else if (type === 'add') {
+                // Only require password for add admin, edit can be left blank
+                if (!password) setError(passwordField, 'Password is required');
+            }
+
+            // Confirm Password check
             const confirmName = (type === 'add') ? 'confirm_password' : 'confirm_new_password';
             const confirmField = form.querySelector(`input[name="${confirmName}"]`);
             if (confirmField && password && confirmField.value !== password) {
-                const group = confirmField.closest('.form-group');
-                group.classList.add('has-error');
-                group.querySelector('.field-error').textContent = "Passwords do not match.";
-                if (!firstErrorField) firstErrorField = confirmField;
-                isValid = false;
+                setError(confirmField, 'Passwords do not match');
             }
 
             if (firstErrorField) firstErrorField.focus();
@@ -2383,6 +2841,79 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 icon.classList.add('fa-eye');
             }
         }
+
+        function calculateAge(birthday, type) {
+            const ageInput = document.getElementById((type === 'add' ? 'add' : 'edit') + '_age');
+            if (birthday) {
+                const today = new Date();
+                const birthDate = new Date(birthday);
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                ageInput.value = age;
+            } else {
+                ageInput.value = '';
+            }
+        }
+
+        function handleAjaxFormSubmit(formId, actionUrl, modalId) {
+            document.getElementById(formId).addEventListener('submit', function(e) {
+                e.preventDefault();
+                const type = formId === 'addAdminForm' ? 'add' : 'edit';
+                if (!validateAdminForm(type)) return;
+                
+                const formData = new FormData(this);
+                if (type === 'add') {
+                    formData.append('add_admin', '1');
+                } else {
+                    formData.append('edit_admin', '1');
+                }
+                
+                fetch(actionUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (data.redirect) {
+                            window.location.href = data.redirect;
+                        } else {
+                            window.location.reload();
+                        }
+                    } else if (data.status === 'error') {
+                        // Clear previous errors first
+                        this.querySelectorAll('.field-error').forEach(div => div.textContent = '');
+                        this.querySelectorAll('.form-group').forEach(div => div.classList.remove('has-error'));
+                        
+                        if (data.errors) {
+                            for (const [field, msg] of Object.entries(data.errors)) {
+                                const input = this.querySelector(`[name="${field}"]`);
+                                if (input) {
+                                    const group = input.closest('.form-group');
+                                    group.classList.add('has-error');
+                                    group.querySelector('.field-error').textContent = msg;
+                                }
+                            }
+                        } else if (data.message) {
+                            alert(data.message);
+                        }
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            });
+        }
+        
+        // Initialize AJAX form submission
+        document.addEventListener('DOMContentLoaded', function() {
+            handleAjaxFormSubmit('addAdminForm', 'user_management.php', 'addModal');
+            handleAjaxFormSubmit('editForm', 'user_management.php', 'editModal');
+        });
 
         // Auto-hide messages after 5 seconds
         setTimeout(function() {

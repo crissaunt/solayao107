@@ -4,6 +4,12 @@ session_start();
 require_once __DIR__ . '/../php/db_connection.php';
 require_once __DIR__ . '/../php/email-config.php';
 
+// Auto-patch database for registration_status
+try {
+    $conn->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_status VARCHAR(20) DEFAULT 'pending'");
+    $conn->exec("UPDATE users SET registration_status = 'approved' WHERE is_active = true AND registration_status = 'pending'");
+} catch(PDOException $e) {}
+
 // Check if user is logged in and has admin access
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header("Location: ../admin/login.php");
@@ -29,7 +35,8 @@ $offset = ($page - 1) * $limit;
 // Search and filter
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
-$role_filter = isset($_GET['role']) ? (int)$_GET['role'] : 0;
+$date_from = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$date_to = isset($_GET['date_to']) ? $_GET['date_to'] : '';
 $sex_filter = isset($_GET['sex']) ? $_GET['sex'] : 'all';
 $barangay_filter = isset($_GET['barangay']) ? $_GET['barangay'] : 'all';
 
@@ -127,16 +134,17 @@ if (isset($_POST['add_user'])) {
 
     if (empty($errors)) {
         try {
-            // Check if username, email, or id_number already exists
-            $check_query = "SELECT username, email, id_number FROM users WHERE username = :username OR email = :email OR id_number = :id_number";
+            // Check if username, email, id_number, or contact_number already exists
+            $check_query = "SELECT username, email, id_number, contact_number FROM users WHERE username = :username OR email = :email OR id_number = :id_number OR contact_number = :contact_number";
             $check_stmt = $conn->prepare($check_query);
-            $check_stmt->execute([':username' => $username, ':email' => $email, ':id_number' => $id_number]);
+            $check_stmt->execute([':username' => $username, ':email' => $email, ':id_number' => $id_number, ':contact_number' => $contact_number]);
             $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($existing) {
                 if ($existing['username'] === $username) $errors['username'] = "Username is already taken";
                 else if ($existing['email'] === $email) $errors['email'] = "Email is already in use";
                 else if ($existing['id_number'] === $id_number) $errors['id_number'] = "ID number is already taken";
+                else if ($existing['contact_number'] === $contact_number) $errors['contact_number'] = "Contact number is already taken";
                 
                 if ($is_ajax) {
                     echo json_encode(['status' => 'error', 'errors' => $errors]);
@@ -283,15 +291,16 @@ if (isset($_POST['edit_user'])) {
 
     if (empty($errors)) {
         try {
-            $check_query = "SELECT username, email, id_number FROM users WHERE (username = :username OR email = :email OR id_number = :id_number) AND user_id != :user_id";
+            $check_query = "SELECT username, email, id_number, contact_number FROM users WHERE (username = :username OR email = :email OR id_number = :id_number OR contact_number = :contact_number) AND user_id != :user_id";
             $check_stmt = $conn->prepare($check_query);
-            $check_stmt->execute([':username' => $username, ':email' => $email, ':id_number' => $id_number, ':user_id' => $edit_user_id]);
+            $check_stmt->execute([':username' => $username, ':email' => $email, ':id_number' => $id_number, ':contact_number' => $contact_number, ':user_id' => $edit_user_id]);
             $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($existing) {
                 if ($existing['username'] === $username) $errors['username'] = "Username is already taken";
                 else if ($existing['email'] === $email) $errors['email'] = "Email is already in use";
                 else if ($existing['id_number'] === $id_number) $errors['id_number'] = "ID number already exists";
+                else if ($existing['contact_number'] === $contact_number) $errors['contact_number'] = "Contact number already exists";
                 
                 if ($is_ajax) {
                     echo json_encode(['status' => 'error', 'errors' => $errors]);
@@ -383,7 +392,7 @@ if (isset($_POST['toggle_status']) && $is_admin) {
         $user_stmt->execute([':user_id' => $target_user_id]);
         $userData = $user_stmt->fetch(PDO::FETCH_ASSOC);
 
-        $update_query = "UPDATE users SET is_active = :is_active, updated_at = NOW() WHERE user_id = :user_id";
+        $update_query = "UPDATE users SET is_active = :is_active, registration_status = 'approved', updated_at = NOW() WHERE user_id = :user_id";
         $update_stmt = $conn->prepare($update_query);
         $update_stmt->execute([
             ':is_active' => $new_status_val ? 'true' : 'false',
@@ -432,26 +441,31 @@ if (isset($_POST['reject_registration']) && $is_admin) {
         $select_stmt->execute([':user_id' => $target_user_id]);
         $user_data = $select_stmt->fetch(PDO::FETCH_ASSOC);
         
-        if ($user_data && empty($user_data['last_login']) && $user_data['is_active'] == false) {
-            // Send rejection email
-            EmailConfig::sendRegistrationStatusEmail($user_data['email'], $user_data['first_name'], 'rejected', $reason);
-            
-            // Delete related records
-            $conn->prepare("DELETE FROM user_security_answers WHERE user_id = :user_id")->execute([':user_id' => $target_user_id]);
-            
-            // Delete user
-            $delete_query = "DELETE FROM users WHERE user_id = :user_id";
-            $delete_stmt = $conn->prepare($delete_query);
-            $delete_stmt->execute([':user_id' => $target_user_id]);
+        $is_active_bool = filter_var($user_data['is_active'], FILTER_VALIDATE_BOOLEAN);
+        
+        if ($user_data && !$is_active_bool) {
+            // Reject user instead of deleting
+            $reject_query = "UPDATE users SET registration_status = 'rejected', updated_at = NOW() WHERE user_id = :user_id";
+            $reject_stmt = $conn->prepare($reject_query);
+            $reject_stmt->execute([':user_id' => $target_user_id]);
             
             $conn->commit();
-            $_SESSION['success_message'] = "User registration rejected, deleted, and notification email sent.";
+            
+            // Try to send email, but don't fail the rejection if email fails
+            try {
+                EmailConfig::sendRegistrationStatusEmail($user_data['email'], $user_data['first_name'], 'rejected', $reason);
+                $_SESSION['success_message'] = "User registration rejected and notification email sent.";
+            } catch (Exception $emailException) {
+                $_SESSION['success_message'] = "User registration rejected, but notification email could not be sent.";
+            }
         } else {
             $conn->rollBack();
             $_SESSION['error_message'] = "Cannot reject this user. They may already be active or missing.";
         }
-    } catch (PDOException $e) {
-        $conn->rollBack();
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         $_SESSION['error_message'] = "Failed to reject user: " . $e->getMessage();
     }
     
@@ -810,14 +824,24 @@ if (!empty($search)) {
     $params[':search'] = "%$search%";
 }
 
-if ($status_filter !== 'all') {
-    $is_active = ($status_filter === 'active') ? 'true' : 'false';
-    $conditions[] = "u.is_active = $is_active";
+if ($status_filter === 'active') {
+    $conditions[] = "u.is_active = true";
+} elseif ($status_filter === 'inactive') {
+    $conditions[] = "u.is_active = false AND (u.registration_status IS NULL OR u.registration_status = 'approved')";
+} elseif ($status_filter === 'new') {
+    $conditions[] = "u.is_active = false AND u.last_login IS NULL AND (u.registration_status IS NULL OR u.registration_status = 'pending')";
+} elseif ($status_filter === 'rejected') {
+    $conditions[] = "u.registration_status = 'rejected'";
 }
 
-if ($role_filter > 0) {
-    $conditions[] = "u.role_id = :role_id";
-    $params[':role_id'] = $role_filter;
+if (!empty($date_from)) {
+    $conditions[] = "DATE(u.created_at) >= :date_from";
+    $params[':date_from'] = $date_from;
+}
+
+if (!empty($date_to)) {
+    $conditions[] = "DATE(u.created_at) <= :date_to";
+    $params[':date_to'] = $date_to;
 }
 
 if ($sex_filter !== 'all') {
@@ -869,6 +893,7 @@ try {
         u.is_active,
         u.created_at,
         u.last_login,
+        u.registration_status,
         u.role_id,
         r.role_name,
         r.role_description,
@@ -1740,21 +1765,20 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         <label><i class="fas fa-filter"></i> Status</label>
                         <select name="status">
                             <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Statuses</option>
-                            <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active Only</option>
-                            <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive Only</option>
+                            <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                            <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                            <option value="new" <?php echo $status_filter === 'new' ? 'selected' : ''; ?>>New</option>
+                            <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                         </select>
                     </div>
 
                     <div class="filter-group">
-                        <label><i class="fas fa-user-tag"></i> Role</label>
-                        <select name="role">
-                            <option value="0">All Roles</option>
-                            <?php foreach ($roles as $role): ?>
-                                <option value="<?php echo $role['role_id']; ?>" <?php echo $role_filter == $role['role_id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($role['role_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label><i class="far fa-calendar-alt"></i> Created From</label>
+                        <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="far fa-calendar-alt"></i> Created To</label>
+                        <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
                     </div>
 
 
@@ -1851,10 +1875,14 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if ($user['is_active']): ?>
-                                        <span class="badge badge-success">Active</span>
+                                        <?php if (isset($user['registration_status']) && $user['registration_status'] === 'rejected'): ?>
+                                        <span class="badge badge-danger">REJECTED</span>
+                                        <?php elseif (!$user['is_active'] && empty($user['last_login']) && (!isset($user['registration_status']) || $user['registration_status'] === 'pending')): ?>
+                                        <span class="badge" style="background-color: #17a2b8; color: white;">NEW</span>
+                                        <?php elseif ($user['is_active']): ?>
+                                        <span class="badge badge-success">ACTIVE</span>
                                         <?php else: ?>
-                                        <span class="badge badge-danger">Inactive</span>
+                                        <span class="badge badge-danger">INACTIVE</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -1884,7 +1912,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                             
                                             
                                             <?php if ($user['user_id'] != $user_id): ?>
-                                            <?php if (!$user['is_active'] && empty($user['last_login'])): ?>
+                                            <?php if (!$user['is_active'] && empty($user['last_login']) && (!isset($user['registration_status']) || $user['registration_status'] === 'pending')): ?>
                                                 <!-- Registration Approval Flow -->
                                                 <form method="POST" style="display: contents;">
                                                     <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
@@ -1895,10 +1923,11 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                                     </button>
                                                 </form>
                                                 
-                                                <form method="POST" style="display: contents;" onsubmit="return confirm('Are you sure you want to reject this registration? This will delete the user.');">
+                                                <form method="POST" style="display: contents;" onsubmit="return confirm('Are you sure you want to reject this registration?');">
+                                                    <input type="hidden" name="reject_registration" value="1">
                                                     <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
-                                                    <button type="submit" name="reject_registration" class="action-btn" 
-                                                            title="Reject & Delete Registration" style="color: var(--danger);">
+                                                    <button type="submit" class="action-btn" 
+                                                            title="Reject Registration" style="color: var(--danger);">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </form>
@@ -1922,18 +1951,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                                                     </button>
                                                 <?php endif; ?>
                                                 
-                                                <!-- Delete button -->
-                                                <?php if ($is_super_admin): ?>
-                                                    <button onclick="showDeleteModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>')" 
-                                                            class="action-btn action-btn-delete" title="Delete User">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                <?php else: ?>
-                                                    <button onclick="showRequestDeletionModal(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($full_name)); ?>')" 
-                                                            class="action-btn action-btn-delete" title="Request Deletion">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                <?php endif; ?>
+                                                <!-- Delete functionality removed as per request -->
                                             <?php endif; ?>
                                             <?php endif; ?>
                                         </div>
@@ -2181,6 +2199,7 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                     <div class="input-box">
                         <label>Sex</label>
                         <select id="edit_sex" name="sex">
+                            <option value="">Select Sex</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                         </select>
@@ -2420,7 +2439,12 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                 setVal('edit_extension_name', data.extension_name || '');
                 setVal('edit_birthday', data.birthday || '');
                 setVal('edit_age', data.age || '');
-                setVal('edit_sex', data.sex || '');
+                
+                let sexVal = (data.sex || '').toLowerCase();
+                if (sexVal === 'male') setVal('edit_sex', 'Male');
+                else if (sexVal === 'female') setVal('edit_sex', 'Female');
+                else setVal('edit_sex', '');
+                
                 setVal('edit_contact_number', data.contact_number || '');
                 setVal('edit_street_purok', data.street_purok || '');
                 setVal('edit_barangay', data.barangay || '');
@@ -2563,8 +2587,72 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
         }
     }
 
+    // Real-time duplicate checking for users.php
+    function attachDuplicateCheckers() {
+        const fieldsToCheck = [
+            { name: 'username', addId: 'add_username', editId: 'edit_username', errAdd: 'err-username', errEdit: 'err-edit-username' },
+            { name: 'email', addId: 'add_email', editId: 'edit_email', errAdd: 'err-email', errEdit: 'err-edit-email' },
+            { name: 'id_number', addId: 'add_id_number', editId: 'edit_id_number', errAdd: 'err-id_number', errEdit: 'err-edit-id_number' },
+            { name: 'contact_number', addId: 'add_contact_number', editId: 'edit_contact_number', errAdd: 'err-contact_number', errEdit: 'err-edit-contact_number' }
+        ];
+        
+        fieldsToCheck.forEach(field => {
+            const addInput = document.getElementById(field.addId);
+            if (addInput) {
+                addInput.addEventListener('blur', function() {
+                    checkDuplicate(field.name, this.value, this, field.errAdd, 0);
+                });
+            }
+            
+            const editInput = document.getElementById(field.editId);
+            if (editInput) {
+                editInput.addEventListener('blur', function() {
+                    const userId = document.getElementById('edit_user_id').value;
+                    checkDuplicate(field.name, this.value, this, field.errEdit, userId);
+                });
+            }
+        });
+    }
+
+    function checkDuplicate(fieldName, value, inputElement, errId, excludeId = 0) {
+        if (!value.trim()) return;
+        
+        const formData = new FormData();
+        formData.append('field', fieldName);
+        formData.append('value', value);
+        if (excludeId > 0) formData.append('exclude_id', excludeId);
+
+        fetch('check_duplicate.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            const errSpan = document.getElementById(errId);
+            if (data.exists) {
+                inputElement.classList.add('invalid');
+                let displayLabel = fieldName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                if (fieldName === 'id_number') displayLabel = 'ID Number';
+                if (errSpan) {
+                    errSpan.textContent = `${displayLabel} already exists in the system.`;
+                    errSpan.style.display = 'block';
+                }
+                inputElement.dataset.exists = "true";
+            } else {
+                inputElement.dataset.exists = "false";
+                if (errSpan && errSpan.textContent.includes('already exists in the system.')) {
+                    inputElement.classList.remove('invalid');
+                    errSpan.textContent = '';
+                    errSpan.style.display = 'none';
+                }
+            }
+        })
+        .catch(err => console.error('Duplicate check error:', err));
+    }
+
     // Password strength meter for add form
     document.addEventListener('DOMContentLoaded', function() {
+        attachDuplicateCheckers();
         const passwordInput = document.getElementById('add_password');
         if (passwordInput) {
             passwordInput.addEventListener('input', function() {
@@ -2654,6 +2742,13 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         input.classList.add('invalid');
                         if (errSpan) {
                             errSpan.textContent = `${field.name} is required.`;
+                            errSpan.style.display = 'block';
+                        }
+                    } else if (input.dataset.exists === "true") {
+                        isValid = false;
+                        input.classList.add('invalid');
+                        if (errSpan) {
+                            errSpan.textContent = `${field.name} already exists.`;
                             errSpan.style.display = 'block';
                         }
                     } else if (value) {
@@ -2875,6 +2970,13 @@ $sidebar_closed = isset($_COOKIE['sidebar_closed']) ? $_COOKIE['sidebar_closed']
                         input.classList.add('invalid');
                         if (errSpan) {
                             errSpan.textContent = `${field.name} is required.`;
+                            errSpan.style.display = 'block';
+                        }
+                    } else if (input.dataset.exists === "true") {
+                        isValid = false;
+                        input.classList.add('invalid');
+                        if (errSpan) {
+                            errSpan.textContent = `${field.name} already exists.`;
                             errSpan.style.display = 'block';
                         }
                     } else if (value) {

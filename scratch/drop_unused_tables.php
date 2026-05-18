@@ -1,23 +1,16 @@
 <?php
 require_once __DIR__ . '/../php/db_connection.php';
 
-$tables_to_drop = [
-    'admin_users_backup',
-    'role_permissions',
-    'permissions'
-];
+try {
+    // Drop the unused admin_login_attempts table
+    $conn->exec("DROP TABLE IF EXISTS admin_login_attempts CASCADE;");
+    echo "Successfully deleted table: admin_login_attempts\n";
 
-echo "<h3>Starting Cleanup of Unused Tables...</h3>";
+    // Drop the unused password_reset_attempts table
+    $conn->exec("DROP TABLE IF EXISTS password_reset_attempts CASCADE;");
+    echo "Successfully deleted table: password_reset_attempts\n";
 
-foreach ($tables_to_drop as $table) {
-    try {
-        // We use CASCADE to safely drop any leftover/orphaned foreign keys pointing to these tables
-        $conn->exec("DROP TABLE IF EXISTS $table CASCADE");
-        echo "<p style='color:green'>✅ Table <b>'$table'</b> dropped successfully (or did not exist).</p>";
-    } catch (PDOException $e) {
-        echo "<p style='color:red'>❌ Error dropping table <b>'$table'</b>: " . $e->getMessage() . "</p>";
-    }
+} catch (PDOException $e) {
+    echo "Error deleting tables: " . $e->getMessage() . "\n";
 }
-
-echo "<h3>Cleanup Completed!</h3>";
 ?>

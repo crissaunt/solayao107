@@ -10,13 +10,28 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['logged_in'])) {
 }
 
 $user_id = $_SESSION['user_id'];
+$role_id = $_SESSION['role_id'] ?? 3;
+
+// Check if they already have security questions
+$q_check = $conn->prepare("SELECT COUNT(*) FROM user_security_answers WHERE user_id = :uid");
+$q_check->execute([':uid' => $user_id]);
+$has_questions = $q_check->fetchColumn() > 0;
+
+// Admins & Superadmins (role_id 1 and 2) do not use/require security questions
+if ($role_id == 1 || $role_id == 2) {
+    $has_questions = true;
+}
 
 // Determine if password change is mandatory
 $must_change_password = isset($_SESSION['must_change_password']) && $_SESSION['must_change_password'] === true;
 
 // If they have questions AND don't need to change password, they don't need to be here
 if ($has_questions && !$must_change_password) {
-    header("Location: home.php");
+    if ($role_id == 1 || $role_id == 2) {
+        header("Location: ../admin/dashboard.php");
+    } else {
+        header("Location: home.php");
+    }
     exit();
 }
 
@@ -34,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $errors = [];
     if (empty($password)) $errors[] = "New password is required";
-    if ($password === 'FFll24()') $errors[] = "You must choose a password different from the default one";
+    if ($password === 'abcd1234') $errors[] = "You must choose a password different from the default one";
     
     if (!$has_questions) {
         if ($q1 <= 0 || empty($a1)) $errors[] = "Security Question 1 is required";

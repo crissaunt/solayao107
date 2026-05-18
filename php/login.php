@@ -215,7 +215,7 @@ try {
         $has_questions = $q_check->fetchColumn() > 0;
 
         // Force password change if default password is used
-        $is_default_password = ($password === 'FFll24()');
+        $is_default_password = ($password === 'abcd1234');
         if ($is_default_password) {
             $_SESSION['must_change_password'] = true;
         }
